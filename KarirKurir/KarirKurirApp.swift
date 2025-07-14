@@ -9,8 +9,7 @@ import SwiftUI
 struct KarirKurirApp: App {
     var body: some Scene {
         WindowGroup {
-            GameViewRepresentable()
-                .ignoresSafeArea()
+            ContentView()
         }
     }
 }

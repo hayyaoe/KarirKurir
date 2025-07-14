@@ -2,7 +2,6 @@
 //  PlayerNode.swift
 //  KarirKurir
 //
-
 import SpriteKit
 
 class PlayerNode: SKSpriteNode {
@@ -17,6 +16,7 @@ class PlayerNode: SKSpriteNode {
         setupPhysics(playerSize: playerSize)
     }
     
+    @available(*, unavailable)
     required init?(coder aDecoder: NSCoder) {
         fatalError("init(coder:) has not been implemented")
     }
@@ -46,8 +46,15 @@ class PlayerNode: SKSpriteNode {
     }
     
     private func setupPhysics(playerSize: CGSize) {
-        self.physicsBody = SKPhysicsBody(rectangleOf: playerSize)
-        self.physicsBody?.isDynamic = false
+        physicsBody = SKPhysicsBody(rectangleOf: playerSize)
+        physicsBody?.affectedByGravity = false
+        physicsBody?.isDynamic = true
+        physicsBody?.allowsRotation = false
+        physicsBody?.categoryBitMask = 1 // Player category
+        physicsBody?.collisionBitMask = 2 // Collide with walls
+        physicsBody?.contactTestBitMask = 2 | 4 // Test contact with walls and destination
+        
+        print("Player physics setup: categoryBitMask = 1, contactTestBitMask = 6")
     }
     
     func move(to targetPosition: CGPoint, completion: @escaping () -> Void) {
@@ -86,7 +93,7 @@ class PlayerNode: SKSpriteNode {
         directionIndicator.run(rotateAction)
         
         // Position indicator based on direction
-        let indicatorDistance: CGFloat = size.width / 3
+        let indicatorDistance: CGFloat = size.width/3
         let indicatorX = cos(angle) * indicatorDistance
         let indicatorY = sin(angle) * indicatorDistance
         
