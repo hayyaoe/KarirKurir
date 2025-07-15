@@ -1,3 +1,8 @@
+//
+//  MazeNode.swift
+//  KarirKurir
+//
+
 import SpriteKit
 
 class MazeNode: SKNode {
@@ -32,6 +37,9 @@ class MazeNode: SKNode {
                         x: CGFloat(x) * tileSize.width,
                         y: CGFloat(y) * tileSize.height
                     )
+                    
+                    // Set z-position for proper layering (items will be at z=10)
+                    wall.zPosition = 1
                     
                     // Setup physics for the wall
                     wall.physicsBody = SKPhysicsBody(rectangleOf: tileSize)

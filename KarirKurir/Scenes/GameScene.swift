@@ -26,10 +26,6 @@ class GameScene: SKScene {
     private var score = 0
     private var scoreLabel: SKLabelNode!
     
-    //    // Physics Categories
-    //    private let playerCategory: UInt32 = 0x1 << 0
-    //    private let itemCategory: UInt32 = 0x1 << 1
-    
     // MARK: - Scene Lifecycle
     override func didMove(to view: SKView) {
         backgroundColor = .darkGray
@@ -127,7 +123,7 @@ class GameScene: SKScene {
         if isPath(at: nextGridPos) {
             let targetScenePos = convertGridToScene(gridPoint: nextGridPos)
             player.move(to: targetScenePos) { [weak self] in
-                self?.checkForNearbyItems()
+                self?.checkForItemsAtExactAdjacentTiles()
             }
         } else {
             // Hit a wall, stop moving
@@ -157,12 +153,13 @@ class GameScene: SKScene {
     }
     
     // MARK: - Collection Logic
-    private func checkForNearbyItems() {
+    private func checkForItemsAtExactAdjacentTiles() {
         // Don't check for items if already processing a collection
         guard !isProcessingCollection else { return }
         
         guard let playerGridPos = convertSceneToGrid(scenePoint: player.position) else { return }
         
+        // Get the exact adjacent grid positions
         let adjacentGridPoints = [
             getNextGridPosition(from: playerGridPos, for: .up),
             getNextGridPosition(from: playerGridPos, for: .down),
@@ -170,12 +167,19 @@ class GameScene: SKScene {
             getNextGridPosition(from: playerGridPos, for: .right)
         ]
         
+        // Convert adjacent grid points to scene positions for comparison
+        let adjacentScenePositions = adjacentGridPoints.map { convertGridToScene(gridPoint: $0) }
+        
         for node in children {
-            guard let item = node as? ItemNode, let itemGridPos = convertSceneToGrid(scenePoint: item.position) else { continue }
+            guard let item = node as? ItemNode else { continue }
             
-            if adjacentGridPoints.contains(where: { $0 == itemGridPos }) {
-                collect(item: item)
-                return
+            // Check if the item is at one of the exact adjacent positions
+            for adjacentPos in adjacentScenePositions {
+                // Use a very small tolerance for floating point comparison
+                if abs(item.position.x - adjacentPos.x) < 1 && abs(item.position.y - adjacentPos.y) < 1 {
+                    collect(item: item)
+                    return
+                }
             }
         }
     }
@@ -187,7 +191,7 @@ class GameScene: SKScene {
         // Stop current movement
         stopAutoMovement()
         
-        print("Collected an item by proximity! Processing collection...")
+        print("Collected an item! Processing collection...")
         updateScore(by: item.category.points)
         
         // Add collection feedback animations
@@ -269,26 +273,6 @@ class GameScene: SKScene {
         scoreLabel.run(scaleSequence)
     }
     
-    //    // MARK: - Collision Handling
-    //    func didBegin(_ contact: SKPhysicsContact) {
-    //        let firstBody: SKPhysicsBody
-    //        let secondBody: SKPhysicsBody
-    //
-    //        if contact.bodyA.categoryBitMask < contact.bodyB.categoryBitMask {
-    //            firstBody = contact.bodyA
-    //            secondBody = contact.bodyB
-    //        } else {
-    //            firstBody = contact.bodyB
-    //            secondBody = contact.bodyA
-    //        }
-    //
-    //        if (firstBody.categoryBitMask == playerCategory) && (secondBody.categoryBitMask == itemCategory) {
-    //            if let itemNode = secondBody.node as? ItemNode {
-    //                collect(item: itemNode)
-    //            }
-    //        }
-    //    }
-    
     // MARK: - Maze and Coordinate Helpers
     
     /// Converts a scene point (pixels) to maze grid coordinates (integers).
@@ -301,6 +285,7 @@ class GameScene: SKScene {
     }
     
     /// Converts maze grid coordinates (integers) to a scene point (pixels).
+    /// This now returns the center of the tile, not the corner.
     private func convertGridToScene(gridPoint: CGPoint) -> CGPoint {
         let localPoint = CGPoint(
             x: gridPoint.x * tileSize.width,

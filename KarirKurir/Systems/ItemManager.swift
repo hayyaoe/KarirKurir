@@ -33,81 +33,42 @@ class ItemManager {
         spawnTimer?.invalidate()
     }
     
-//    private func spawnItem() {
-//        guard let scene = scene, let mazeGenerator = mazeGenerator else { return }
-//
-//        // Get all possible path locations from the maze generator
-//        let pathableLocations = mazeGenerator.getPathableLocations()
-//        guard !pathableLocations.isEmpty else {
-//            print("No pathable locations to spawn item.")
-//            return
-//        }
-//
-//        // Select a random path location
-//        let randomGridPoint = pathableLocations.randomElement()!
-//
-//        // Convert grid point to scene coordinates
-//        let finalPosition = CGPoint(
-//            x: randomGridPoint.x * tileSize.width,
-//            y: randomGridPoint.y * tileSize.height
-//        )
-//
-//        // Ensure we don't spawn on top of an existing item
-//        for node in scene.children {
-//            if node is ItemNode && node.position == finalPosition {
-//                print("Attempted to spawn item on an existing one. Skipping.")
-//                return
-//            }
-//        }
-//
-//        let randomTime = Int.random(in: 16...25)
-//        let item = ItemNode(size: itemSize, initialTime: randomTime)
-//        item.position = finalPosition
-//
-//        item.onTimerExpired = { [weak item] in
-//            print("Item expired and was removed.")
-//            item?.removeFromParent()
-//        }
-//
-//        scene.addChild(item)
-//        print("Spawned item at grid point \(randomGridPoint) with timer \(randomTime)s")
-//    }
-    
     private func spawnItem() {
         guard let scene = scene, let mazeGenerator = mazeGenerator else { return }
         
-        // Get all possible path locations from the maze generator
-        let pathableLocations = mazeGenerator.getPathableLocations()
-        guard !pathableLocations.isEmpty else {
-            print("No pathable locations to spawn item.")
+        // Get all accessible wall locations from the maze generator
+        let wallLocations = mazeGenerator.getAccessibleWallLocations()
+        guard !wallLocations.isEmpty else {
+            print("No accessible wall locations to spawn item.")
             return
         }
         
-        // Select a random path location
-        let randomGridPoint = pathableLocations.randomElement()!
+        // Select a random wall location
+        let randomGridPoint = wallLocations.randomElement()!
         
-        // Convert grid point to scene coordinates with proper centering
-        // Add half tile size to center the item within the tile
-        let centeredPosition = CGPoint(
-            x: randomGridPoint.x * tileSize.width + (tileSize.width / 2),
-            y: randomGridPoint.y * tileSize.height + (tileSize.height / 2)
+        // Convert grid point to scene coordinates
+        // The item will be centered on the wall tile
+        let localPosition = CGPoint(
+            x: randomGridPoint.x * tileSize.width,
+            y: randomGridPoint.y * tileSize.height
         )
         
-        // Convert from maze node's local coordinates to scene coordinates
+        // Find the maze node to convert coordinates properly
         guard let mazeNode = scene.children.first(where: { $0 is MazeNode }) as? MazeNode else {
             print("Could not find maze node in scene")
             return
         }
         
-        let finalPosition = scene.convert(centeredPosition, from: mazeNode)
+        // Convert from maze node's local coordinates to scene coordinates
+        let finalPosition = scene.convert(localPosition, from: mazeNode)
         
-        // Ensure we don't spawn on top of an existing item
+        // Check if there's already an item at this exact position
         for node in scene.children {
             if let existingItem = node as? ItemNode {
-                let distance = sqrt(pow(existingItem.position.x - finalPosition.x, 2) +
-                                    pow(existingItem.position.y - finalPosition.y, 2))
-                if distance < tileSize.width {
-                    print("Attempted to spawn item too close to an existing one. Skipping.")
+                // Check for exact tile position match
+                if abs(existingItem.position.x - finalPosition.x) < 1 &&
+                    abs(existingItem.position.y - finalPosition.y) < 1 {
+                    print("Attempted to spawn item on an existing one. Skipping.")
                     return
                 }
             }
@@ -117,12 +78,15 @@ class ItemManager {
         let item = ItemNode(size: itemSize, initialTime: randomTime)
         item.position = finalPosition
         
+        // Set a higher z-position so items appear on top of walls
+        item.zPosition = 10
+        
         item.onTimerExpired = { [weak item] in
             print("Item expired and was removed.")
             item?.removeFromParent()
         }
         
         scene.addChild(item)
-        print("Spawned item at grid point \(randomGridPoint) with timer \(randomTime)s at position \(finalPosition)")
+        print("Spawned item on wall at grid point \(randomGridPoint) with timer \(randomTime)s at position \(finalPosition)")
     }
 }

@@ -39,6 +39,42 @@ class MazeGenerator {
         }
         return locations
     }
+    
+    /// Returns a list of all wall locations that are adjacent to at least one path.
+    /// This ensures items on walls can be collected by the player.
+    func getAccessibleWallLocations() -> [CGPoint] {
+        var locations: [CGPoint] = []
+        
+        for x in 0..<width {
+            for y in 0..<height {
+                // Check if this is a wall
+                if grid[x][y] == .wall {
+                    // Check if there's at least one adjacent path
+                    let adjacentPositions = [
+                        (x: x+1, y: y),
+                        (x: x-1, y: y),
+                        (x: x, y: y+1),
+                        (x: x, y: y-1)
+                    ]
+                    
+                    var hasAdjacentPath = false
+                    for pos in adjacentPositions {
+                        if pos.x >= 0 && pos.x < width && pos.y >= 0 && pos.y < height {
+                            if grid[pos.x][pos.y] == .path {
+                                hasAdjacentPath = true
+                                break
+                            }
+                        }
+                    }
+                    
+                    if hasAdjacentPath {
+                        locations.append(CGPoint(x: x, y: y))
+                    }
+                }
+            }
+        }
+        return locations
+    }
 
     private func generate() {
         // Start the maze generation from a random odd-numbered cell
