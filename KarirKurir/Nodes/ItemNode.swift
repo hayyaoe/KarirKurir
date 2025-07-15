@@ -9,12 +9,14 @@ import SpriteKit
 
 class ItemNode: SKSpriteNode {
     
-    private var timerLabel: SKLabelNode!
     private var countdownTimer: Timer?
     private var remainingTime: Int
+    private var initialTime: Int
     
-    // The category bar node, now a class property to be accessible later.
-    private var categoryBar: SKShapeNode!
+    // Chat bubble components
+    private var chatBubble: SKSpriteNode!
+    private var progressBarBackground: SKShapeNode!
+    private var progressBarFill: SKShapeNode!
     
     // The item's category can now be changed internally.
     private(set) var category: ItemCategory
@@ -26,12 +28,12 @@ class ItemNode: SKSpriteNode {
     
     init(size: CGSize, initialTime: Int) {
         self.remainingTime = initialTime
+        self.initialTime = initialTime
         self.category = ItemCategory.category(for: initialTime)
         super.init(texture: nil, color: .clear, size: size)
         
         setupVisuals()
-        setupCategoryIndicator()
-        setupTimerLabel()
+        setupChatBubbleTimer()
         setupPhysics()
         startCountdown()
     }
@@ -41,13 +43,6 @@ class ItemNode: SKSpriteNode {
     }
     
     private func setupVisuals() {
-        // Simple circle shape for the item
-        let circle = SKShapeNode(circleOfRadius: size.width / 2)
-        circle.fillColor = .systemYellow
-        circle.strokeColor = .white
-        circle.lineWidth = 2
-        addChild(circle)
-        
         // Add a subtle pulse animation
         let scaleUp = SKAction.scale(to: 1.1, duration: 0.5)
         let scaleDown = SKAction.scale(to: 1.0, duration: 0.5)
@@ -55,14 +50,29 @@ class ItemNode: SKSpriteNode {
         run(pulse)
     }
     
-    private func setupCategoryIndicator() {
-        // Create a colored bar above the item to show its category
-        let barSize = CGSize(width: size.width * 0.8, height: 8)
-        categoryBar = SKShapeNode(rectOf: barSize, cornerRadius: 4)
-        categoryBar.fillColor = category.color
-        categoryBar.strokeColor = category.color
-        categoryBar.position = CGPoint(x: 0, y: (size.height / 2) + barSize.height)
-        addChild(categoryBar)
+    private func setupChatBubbleTimer() {
+        // Create chat bubble using the provided image
+        let bubbleTexture = SKTexture(imageNamed: "package") // Use your chat bubble image name
+        chatBubble = SKSpriteNode(texture: bubbleTexture, size: CGSize(width: size.width * 2.6, height: size.height * 2.3))
+        chatBubble.position = CGPoint(x: 0, y: size.height * 0.8) // Position above the item
+        chatBubble.zPosition = 1
+        addChild(chatBubble)
+        
+        // Create progress bar background inside the bubble
+        let barWidth: CGFloat = chatBubble.size.width * 0.7
+        let barHeight: CGFloat = 8
+        progressBarBackground = SKShapeNode(rectOf: CGSize(width: barWidth, height: barHeight), cornerRadius: 4)
+        progressBarBackground.fillColor = .darkGray
+        progressBarBackground.strokeColor = .clear
+        progressBarBackground.position = CGPoint(x: 0, y: -2) // Slightly below center of bubble
+        chatBubble.addChild(progressBarBackground)
+        
+        // Create progress bar fill
+        progressBarFill = SKShapeNode(rectOf: CGSize(width: barWidth, height: barHeight), cornerRadius: 4)
+        progressBarFill.fillColor = category.color
+        progressBarFill.strokeColor = .clear
+        progressBarFill.position = CGPoint(x: 0, y: 0)
+        progressBarBackground.addChild(progressBarFill)
     }
     
     private func setupPhysics() {
@@ -73,15 +83,6 @@ class ItemNode: SKSpriteNode {
         self.physicsBody?.categoryBitMask = ItemNode.categoryBitMask
         self.physicsBody?.collisionBitMask = PlayerNode.category
         self.physicsBody?.contactTestBitMask = 0
-    }
-    
-    private func setupTimerLabel() {
-        timerLabel = SKLabelNode(fontNamed: "Helvetica-Bold")
-        timerLabel.fontSize = 18
-        timerLabel.fontColor = .black
-        timerLabel.position = CGPoint(x: 0, y: -timerLabel.frame.height / 2)
-        updateTimerLabel()
-        addChild(timerLabel)
     }
     
     private func startCountdown() {
@@ -113,26 +114,25 @@ class ItemNode: SKSpriteNode {
         }
         
         remainingTime -= 1
-        updateTimerLabel()
+        updateProgressBar()
         
-        // *** LOGIC TO UPDATE CATEGORY BAR COLOR ***
+        // Update category and color based on remaining time
         let newCategory = ItemCategory.category(for: remainingTime)
         if newCategory != self.category {
             // Update the internal category state
             self.category = newCategory
             
-            // Remove all existing actions on the category bar to prevent conflicts
-            categoryBar?.removeAllActions()
-            
-            // Update both fill and stroke colors immediately, then animate
-            categoryBar?.fillColor = newCategory.color
-            categoryBar?.strokeColor = newCategory.color
+            // Update progress bar color with animation
+            let colorChangeAction = SKAction.run {
+                self.progressBarFill.fillColor = newCategory.color
+            }
             
             // Add a subtle scale animation to indicate the category change
-            let scaleUp = SKAction.scale(to: 1.2, duration: 0.15)
+            let scaleUp = SKAction.scale(to: 1.1, duration: 0.15)
             let scaleDown = SKAction.scale(to: 1.0, duration: 0.15)
             let scaleSequence = SKAction.sequence([scaleUp, scaleDown])
-            categoryBar?.run(scaleSequence)
+            
+            progressBarFill.run(SKAction.group([colorChangeAction, scaleSequence]))
             
             print("Category changed to \(newCategory) at time \(remainingTime) - Color: \(newCategory.color)")
         }
@@ -147,8 +147,29 @@ class ItemNode: SKSpriteNode {
         }
     }
     
-    private func updateTimerLabel() {
-        timerLabel.text = "\(remainingTime)"
+    private func updateProgressBar() {
+        let progress = CGFloat(remainingTime) / CGFloat(initialTime)
+        let maxWidth = progressBarBackground.frame.width
+        let newWidth = maxWidth * progress
+        
+        // Animate the progress bar shrinking
+        let newSize = CGSize(width: newWidth, height: progressBarFill.frame.height)
+        
+        // Remove current fill and create new one with updated size
+        progressBarFill.removeFromParent()
+        progressBarFill = SKShapeNode(rectOf: newSize, cornerRadius: 4)
+        progressBarFill.fillColor = category.color
+        progressBarFill.strokeColor = .clear
+        
+        // Position the bar to align to the left side
+        let offsetX = -(maxWidth - newWidth) / 2
+        progressBarFill.position = CGPoint(x: offsetX, y: 0)
+        progressBarBackground.addChild(progressBarFill)
+        
+        // Add a subtle animation to the bar update
+        progressBarFill.alpha = 0.8
+        let fadeIn = SKAction.fadeAlpha(to: 1.0, duration: 0.2)
+        progressBarFill.run(fadeIn)
     }
     
     deinit {

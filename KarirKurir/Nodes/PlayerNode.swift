@@ -62,6 +62,10 @@ class PlayerNode: SKSpriteNode {
     }
     
     func move(to targetPosition: CGPoint, completion: @escaping () -> Void) {
+        moveWithCustomDuration(to: targetPosition, duration: moveDuration, completion: completion)
+    }
+    
+    func moveWithCustomDuration(to targetPosition: CGPoint, duration: TimeInterval, completion: @escaping () -> Void) {
         // Remove any existing actions first
         removeAllActions()
         
@@ -69,12 +73,12 @@ class PlayerNode: SKSpriteNode {
         updateDirectionIndicator(to: targetPosition)
         
         // Create smooth movement with better easing
-        let moveAction = SKAction.move(to: targetPosition, duration: moveDuration)
+        let moveAction = SKAction.move(to: targetPosition, duration: duration)
         moveAction.timingMode = .easeInEaseOut
         
         // Add a slight scale effect for juice
-        let scaleUp = SKAction.scale(to: 1.1, duration: moveDuration/2)
-        let scaleDown = SKAction.scale(to: 1.0, duration: moveDuration/2)
+        let scaleUp = SKAction.scale(to: 1.1, duration: duration/2)
+        let scaleDown = SKAction.scale(to: 1.0, duration: duration/2)
         let scaleSequence = SKAction.sequence([scaleUp, scaleDown])
         
         let doneAction = SKAction.run(completion)

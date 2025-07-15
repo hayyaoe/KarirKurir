@@ -20,6 +20,7 @@ class GameScene: SKScene {
     var pathTiles: [SKSpriteNode] = []
     var collectedItems: Int = 0
     var expiredItems: Int = 0
+    var holes: [SKSpriteNode] = [] // Add holes array
 
     // Next Object
     var nextMaze: [[Int]] = []
@@ -36,6 +37,7 @@ class GameScene: SKScene {
     var isTransitioning: Bool = false // Add transition state flag
     var isGameOver: Bool = false
     var isCollecting: Bool = false // Add collecting state flag
+    var isOnHole: Bool = false // Track if player is on a hole
 
     // MARK: - UI
 
@@ -213,10 +215,12 @@ class GameScene: SKScene {
         walls.forEach { $0.removeFromParent() }
         items.forEach { $0.removeFromParent() } // Changed from destinations
         pathTiles.forEach { $0.removeFromParent() }
+        holes.forEach { $0.removeFromParent() } // Remove holes
 
         walls.removeAll()
         items.removeAll() // Changed from destinations
         pathTiles.removeAll()
+        holes.removeAll() // Clear holes array
 
         let wallColor = [UIColor.blue, .purple, .red, .green, .orange, .cyan][(level - 1) % 6]
         
@@ -241,7 +245,7 @@ class GameScene: SKScene {
 
                     let textureName: String
                     if isOverDestination {
-                        textureName = randomHouseAsset()
+                        textureName = randomHouseAsset() // Use house textures for walls with items
                     } else {
                         textureName = randomWallAsset()
                     }
@@ -267,6 +271,9 @@ class GameScene: SKScene {
             }
         }
         setupPathTiles(maze: maze, offsetX: offsetX, offsetY: offsetY)
+        
+        // Add holes based on level
+        setupHoles(maze: maze, offsetX: offsetX, offsetY: offsetY)
 
         nextMaze = getMazeLayout(for: level + 1)
     }
@@ -404,11 +411,33 @@ class GameScene: SKScene {
             )
 
             isMoving = true
-            player.move(to: targetPosition) { [weak self] in
+            
+            // Check if player will be on a hole at target position and adjust speed
+            let willBeOnHole = holes.contains { hole in
+                let distance = hypot(targetPosition.x - hole.position.x, targetPosition.y - hole.position.y)
+                return distance < gridSize * 0.5
+            }
+            
+            // Adjust movement duration based on hole presence
+            let moveDuration = willBeOnHole ? 0.36 : 0.18 // 2x slower on holes
+            
+            // Debug logging for hole status
+            if willBeOnHole != isOnHole {
+                print("Moving to \(targetPosition) - \(willBeOnHole ? "entering hole (slow)" : "normal speed")")
+            }
+            
+            // Use the player's move function with custom duration
+            player.moveWithCustomDuration(to: targetPosition, duration: moveDuration) { [weak self] in
                 self?.isMoving = false
+                self?.checkIfPlayerOnHole() // Check hole status after movement
                 self?.checkForItemCollection() // Check for item collection after each move
             }
         }
+    }
+    
+    func collectItem(at index: Int) {
+        // This function is kept for backward compatibility with single item collection
+        collectMultipleItems(at: [index])
     }
 
     func canMove(in direction: Direction) -> Bool {
@@ -434,7 +463,27 @@ class GameScene: SKScene {
             return false
         }
 
+        // Check collision with walls only (holes no longer block movement)
         return !walls.contains(where: { $0.frame.contains(future) })
+    }
+    
+    func checkIfPlayerOnHole() {
+        let wasOnHole = isOnHole
+        isOnHole = false
+        
+        // Check if player is currently on any hole
+        for hole in holes {
+            let distance = hypot(player.position.x - hole.position.x, player.position.y - hole.position.y)
+            if distance < gridSize * 0.5 {
+                isOnHole = true
+                break
+            }
+        }
+        
+        // Log state change for debugging
+        if wasOnHole != isOnHole {
+            print("Player \(isOnHole ? "entered" : "left") hole - movement speed \(isOnHole ? "slowed" : "normal")")
+        }
     }
 
     // MARK: - Item Collection
@@ -452,7 +501,10 @@ class GameScene: SKScene {
         let playerGridX = Int((player.position.x - offsetX) / gridSize)
         let playerGridY = Int((player.position.y - offsetY) / gridSize)
         
-        for (index, item) in items.enumerated().reversed() {
+        // Collect from ALL adjacent items automatically
+        var itemsToCollect: [Int] = []
+        
+        for (index, item) in items.enumerated() {
             // Convert item position to grid coordinates
             let itemGridX = Int((item.position.x - offsetX) / gridSize)
             let itemGridY = Int((item.position.y - offsetY) / gridSize)
@@ -465,101 +517,105 @@ class GameScene: SKScene {
             let isDirectlyAdjacent = (abs(deltaX) == 1 && deltaY == 0) || (deltaX == 0 && abs(deltaY) == 1)
             
             if isDirectlyAdjacent {
-                collectItem(at: index)
-                break // Only collect one item at a time
+                itemsToCollect.append(index)
             }
+        }
+        
+        // Collect all adjacent items automatically
+        if !itemsToCollect.isEmpty {
+            collectMultipleItems(at: itemsToCollect)
         }
     }
 
-    func collectItem(at index: Int) {
-        guard index < items.count, !isTransitioning, !isGameOver, !isCollecting else { return }
-        
-        // Start collecting process - this stops player movement
-        isCollecting = true
-        stopPlayerMovement()
-        
-        let item = items[index]
-        
-        // Calculate score based on item category
-        let points = item.category.points * 10 * level
-        score += points
-        scoreLabel.text = "Score: \(score)"
-        
-        // Show collection feedback
-        let label = SKLabelNode(fontNamed: "Arial-BoldMT")
-        label.text = "+\(points)"
-        label.fontSize = 20
-        label.fontColor = item.category.color
-        label.position = CGPoint(x: item.position.x, y: item.position.y + 30)
-        addChild(label)
-        
-        // Add collection effect
-        let collectEffect = SKShapeNode(circleOfRadius: gridSize * 0.5)
-        collectEffect.strokeColor = item.category.color
-        collectEffect.lineWidth = 3
-        collectEffect.fillColor = .clear
-        collectEffect.position = item.position
-        collectEffect.zPosition = 20
-        addChild(collectEffect)
-        
-        // Player collection animation - make player "glow" during collection
-        let playerGlow = SKShapeNode(rectOf: CGSize(width: gridSize + 4, height: gridSize + 4), cornerRadius: 12)
-        playerGlow.fillColor = .clear
-        playerGlow.strokeColor = item.category.color
-        playerGlow.lineWidth = 3
-        playerGlow.position = player.position
-        playerGlow.zPosition = player.zPosition + 1
-        addChild(playerGlow)
-        
-        // Animate collection effect
-        let expandAction = SKAction.scale(to: 2.0, duration: 0.3)
-        let fadeAction = SKAction.fadeOut(withDuration: 0.3)
-        let removeEffect = SKAction.removeFromParent()
-        let effectSequence = SKAction.sequence([SKAction.group([expandAction, fadeAction]), removeEffect])
-        collectEffect.run(effectSequence)
-        
-        // Animate player glow
-        let glowPulse = SKAction.sequence([
-            SKAction.scale(to: 1.1, duration: 0.1),
-            SKAction.scale(to: 1.0, duration: 0.1)
-        ])
-        let repeatPulse = SKAction.repeat(glowPulse, count: 2)
-        let fadeGlow = SKAction.fadeOut(withDuration: 0.2)
-        let removeGlow = SKAction.removeFromParent()
-        let glowSequence = SKAction.sequence([repeatPulse, fadeGlow, removeGlow])
-        playerGlow.run(glowSequence)
-        
-        // Animate the score label
-        let moveUp = SKAction.moveBy(x: 0, y: 30, duration: 0.8)
-        let fadeOut = SKAction.fadeOut(withDuration: 0.8)
-        let remove = SKAction.removeFromParent()
-        let sequence = SKAction.sequence([SKAction.group([moveUp, fadeOut]), remove])
-        label.run(sequence)
-        
-        // Remove the item and track collection
-        item.removeFromParent()
-        items.remove(at: index)
-        collectedItems += 1
-        
-        print("Collected item from house, \(items.count) items remaining, \(collectedItems) collected")
-        
-        // Wait 0.5 seconds before allowing movement again
-        run(SKAction.sequence([
-            SKAction.wait(forDuration: 0.5),
-            SKAction.run { [weak self] in
-                self?.isCollecting = false
-                // Only restart movement if we're not transitioning or game over
-                if let self = self, !self.isTransitioning && !self.isGameOver {
-                    self.startPlayerMovement()
-                    
-                    // Check if all items are collected
-                    if self.items.isEmpty {
-                        self.checkLevelCompletion()
-                    }
-                }
-            }
-        ]))
-    }
+//    func collectItem(at index: Int) {
+//        guard index < items.count, !isTransitioning, !isGameOver, !isCollecting else { return }
+//        
+//        // Start collecting process - this stops player movement
+//        isCollecting = true
+//        stopPlayerMovement()
+//        
+//        let item = items[index]
+//        
+//        // Calculate score based on item category
+//        let points = item.category.points * 10 * level
+//        score += points
+//        scoreLabel.text = "Score: \(score)"
+//        
+//        // Show collection feedback
+//        let label = SKLabelNode(fontNamed: "Arial-BoldMT")
+//        label.text = "+\(points)"
+//        label.fontSize = 20
+//        label.fontColor = item.category.color
+//        label.position = CGPoint(x: item.position.x, y: item.position.y + 30)
+//        addChild(label)
+//        
+//        // Add collection effect
+//        let collectEffect = SKShapeNode(circleOfRadius: gridSize * 0.5)
+//        collectEffect.strokeColor = item.category.color
+//        collectEffect.lineWidth = 3
+//        collectEffect.fillColor = .clear
+//        collectEffect.position = item.position
+//        collectEffect.zPosition = 20
+//        addChild(collectEffect)
+//        
+//        // Player collection animation - make player "glow" during collection
+//        let playerGlow = SKShapeNode(rectOf: CGSize(width: gridSize + 4, height: gridSize + 4), cornerRadius: 12)
+//        playerGlow.fillColor = .clear
+//        playerGlow.strokeColor = item.category.color
+//        playerGlow.lineWidth = 3
+//        playerGlow.position = player.position
+//        playerGlow.zPosition = player.zPosition + 1
+//        addChild(playerGlow)
+//        
+//        // Animate collection effect
+//        let expandAction = SKAction.scale(to: 2.0, duration: 0.3)
+//        let fadeAction = SKAction.fadeOut(withDuration: 0.3)
+//        let removeEffect = SKAction.removeFromParent()
+//        let effectSequence = SKAction.sequence([SKAction.group([expandAction, fadeAction]), removeEffect])
+//        collectEffect.run(effectSequence)
+//        
+//        // Animate player glow
+//        let glowPulse = SKAction.sequence([
+//            SKAction.scale(to: 1.1, duration: 0.1),
+//            SKAction.scale(to: 1.0, duration: 0.1)
+//        ])
+//        let repeatPulse = SKAction.repeat(glowPulse, count: 2)
+//        let fadeGlow = SKAction.fadeOut(withDuration: 0.2)
+//        let removeGlow = SKAction.removeFromParent()
+//        let glowSequence = SKAction.sequence([repeatPulse, fadeGlow, removeGlow])
+//        playerGlow.run(glowSequence)
+//        
+//        // Animate the score label
+//        let moveUp = SKAction.moveBy(x: 0, y: 30, duration: 0.8)
+//        let fadeOut = SKAction.fadeOut(withDuration: 0.8)
+//        let remove = SKAction.removeFromParent()
+//        let sequence = SKAction.sequence([SKAction.group([moveUp, fadeOut]), remove])
+//        label.run(sequence)
+//        
+//        // Remove the item and track collection
+//        item.removeFromParent()
+//        items.remove(at: index)
+//        collectedItems += 1
+//        
+//        print("Collected item from house, \(items.count) items remaining, \(collectedItems) collected")
+//        
+//        // Wait 0.5 seconds before allowing movement again
+//        run(SKAction.sequence([
+//            SKAction.wait(forDuration: 0.5),
+//            SKAction.run { [weak self] in
+//                self?.isCollecting = false
+//                // Only restart movement if we're not transitioning or game over
+//                if let self = self, !self.isTransitioning && !self.isGameOver {
+//                    self.startPlayerMovement()
+//                    
+//                    // Check if all items are collected
+//                    if self.items.isEmpty {
+//                        self.checkLevelCompletion()
+//                    }
+//                }
+//            }
+//        ]))
+//    }
 
     // MARK: - Game Progress
 
@@ -596,6 +652,7 @@ class GameScene: SKScene {
         // Reset all movement state
         isMoving = false
         isCollecting = false
+        isOnHole = false
         currentDirection = .right
         nextDirection = nil
         
@@ -770,6 +827,65 @@ class GameScene: SKScene {
         }
     }
     
+    func setupHoles(maze: [[Int]], offsetX: CGFloat, offsetY: CGFloat) {
+        // Only add holes if level 5 or higher
+        guard level >= 5 else { return }
+        
+        // Determine number of holes based on level
+        let numberOfHoles = level >= 10 ? 3 : 1
+        
+        // Find all path positions that are safe for holes (not too close to player start or items)
+        var availablePathPositions: [CGPoint] = []
+        
+        for row in 2..<maze.count - 2 {
+            for col in 2..<maze[row].count - 2 {
+                if maze[row][col] == 0 { // This is a path
+                    // Check if this position is far enough from player starting area (bottom-left)
+                    let isNearStart = row >= maze.count - 4 && col <= 4
+                    
+                    // Check if this position is too close to any item
+                    let position = CGPoint(x: col, y: row)
+                    let isTooCloseToItems = itemGridPositions.contains { itemPos in
+                        let deltaX = abs(itemPos.col - col)
+                        let deltaY = abs(itemPos.row - row)
+                        return deltaX <= 2 && deltaY <= 2
+                    }
+                    
+                    if !isNearStart && !isTooCloseToItems {
+                        availablePathPositions.append(position)
+                    }
+                }
+            }
+        }
+        
+        // Select random positions for holes
+        let selectedPositions = Array(availablePathPositions.shuffled().prefix(numberOfHoles))
+        
+        for holePos in selectedPositions {
+            let row = Int(holePos.y)
+            let col = Int(holePos.x)
+            
+            // Create hole visual
+            let holePosition = CGPoint(
+                x: offsetX + CGFloat(col) * gridSize + gridSize/2,
+                y: offsetY + CGFloat(maze.count - row - 1) * gridSize + gridSize/2
+            )
+            
+            // Create hole sprite using texture (replace "holeTexture" with your actual image name)
+            let holeTexture = SKTexture(imageNamed: "hole\(Int.random(in: 1...2))") // Use your brown hole image here
+            let hole = SKSpriteNode(texture: holeTexture, size: CGSize(width: gridSize * 0.8, height: gridSize * 0.8))
+            hole.position = holePosition
+            hole.zPosition = 3 // Above path tiles but below items and walls
+            
+            // No physics body - holes don't block movement anymore
+            
+            holes.append(hole)
+            addChild(hole)
+        }
+        
+        print("Setup \(holes.count) holes for level \(level)")
+    }
+    
     func restartGame() {
         print("Restarting game...")
         
@@ -781,6 +897,7 @@ class GameScene: SKScene {
         isTransitioning = false
         isMoving = false
         isCollecting = false
+        isOnHole = false
         currentDirection = .right
         nextDirection = nil
         collectedItems = 0
@@ -793,16 +910,121 @@ class GameScene: SKScene {
         walls.removeAll()
         items.removeAll()
         pathTiles.removeAll()
+        holes.removeAll()
         itemGridPositions.removeAll()
         
         // Restart the game
         didMove(to: view!)
     }
     
+    func collectMultipleItems(at indices: [Int]) {
+        guard !indices.isEmpty, !isTransitioning, !isGameOver, !isCollecting else { return }
+        
+        // Start collecting process - this stops player movement
+        isCollecting = true
+        stopPlayerMovement()
+        
+        var totalPoints = 0
+        
+        // Sort indices in reverse order to remove items safely
+        let sortedIndices = indices.sorted(by: >)
+        
+        for index in sortedIndices {
+            guard index < items.count else { continue }
+            
+            let item = items[index]
+            
+            // Calculate score based on item category
+            let points = item.category.points * 10 * level
+            totalPoints += points
+            
+            // Add collection effect for each item
+            let collectEffect = SKShapeNode(circleOfRadius: gridSize * 0.5)
+            collectEffect.strokeColor = item.category.color
+            collectEffect.lineWidth = 3
+            collectEffect.fillColor = .clear
+            collectEffect.position = item.position
+            collectEffect.zPosition = 20
+            addChild(collectEffect)
+            
+            // Animate collection effect
+            let expandAction = SKAction.scale(to: 2.0, duration: 0.3)
+            let fadeAction = SKAction.fadeOut(withDuration: 0.3)
+            let removeEffect = SKAction.removeFromParent()
+            let effectSequence = SKAction.sequence([SKAction.group([expandAction, fadeAction]), removeEffect])
+            collectEffect.run(effectSequence)
+            
+            // Remove the item and track collection
+            item.removeFromParent()
+            items.remove(at: index)
+            collectedItems += 1
+        }
+        
+        // Update score with total points
+        score += totalPoints
+        scoreLabel.text = "Score: \(score)"
+        
+        // Show combined score feedback
+        let label = SKLabelNode(fontNamed: "Arial-BoldMT")
+        label.text = "+\(totalPoints)"
+        label.fontSize = 24
+        label.fontColor = sortedIndices.count > 1 ? .yellow : .green
+        label.position = CGPoint(x: player.position.x, y: player.position.y + 40)
+        addChild(label)
+        
+        // Player collection animation - make player "glow" during collection
+        let playerGlow = SKShapeNode(rectOf: CGSize(width: gridSize + 8, height: gridSize + 8), cornerRadius: 12)
+        playerGlow.fillColor = .clear
+        playerGlow.strokeColor = sortedIndices.count > 1 ? .yellow : .green
+        playerGlow.lineWidth = 4
+        playerGlow.position = player.position
+        playerGlow.zPosition = player.zPosition + 1
+        addChild(playerGlow)
+        
+        // Animate player glow - stronger effect for multiple items
+        let pulseCount = sortedIndices.count > 1 ? 3 : 2
+        let glowPulse = SKAction.sequence([
+            SKAction.scale(to: 1.2, duration: 0.1),
+            SKAction.scale(to: 1.0, duration: 0.1)
+        ])
+        let repeatPulse = SKAction.repeat(glowPulse, count: pulseCount)
+        let fadeGlow = SKAction.fadeOut(withDuration: 0.2)
+        let removeGlow = SKAction.removeFromParent()
+        let glowSequence = SKAction.sequence([repeatPulse, fadeGlow, removeGlow])
+        playerGlow.run(glowSequence)
+        
+        // Animate the score label
+        let moveUp = SKAction.moveBy(x: 0, y: 30, duration: 0.8)
+        let fadeOut = SKAction.fadeOut(withDuration: 0.8)
+        let remove = SKAction.removeFromParent()
+        let sequence = SKAction.sequence([SKAction.group([moveUp, fadeOut]), remove])
+        label.run(sequence)
+        
+        print("Collected \(sortedIndices.count) items from houses, \(items.count) items remaining, \(collectedItems) total collected")
+        
+        // Wait 0.5 seconds before allowing movement again
+        run(SKAction.sequence([
+            SKAction.wait(forDuration: 0.5),
+            SKAction.run { [weak self] in
+                self?.isCollecting = false
+                // Only restart movement if we're not transitioning or game over
+                if let self = self, !self.isTransitioning && !self.isGameOver {
+                    self.startPlayerMovement()
+                    
+                    // Check if all items are collected
+                    if self.items.isEmpty {
+                        self.checkLevelCompletion()
+                    }
+                }
+            }
+        ]))
+    }
+    
     func clearInputState() {
         nextDirection = nil
         currentDirection = .right
         isCollecting = false
+        isOnHole = false
         print("Input state cleared")
     }
 
