@@ -35,6 +35,7 @@ class GameScene: SKScene {
     var health: Int = 3
     var isTransitioning: Bool = false // Add transition state flag
     var isGameOver: Bool = false
+    var isCollecting: Bool = false // Add collecting state flag
 
     // MARK: - UI
 
@@ -143,7 +144,7 @@ class GameScene: SKScene {
         gridSize = min(gridSizeByWidth, gridSizeByHeight)
         
         // Ensure minimum grid size for playability
-        gridSize = max(gridSize, 20.0)
+        gridSize = max(gridSize, 35.0)
         
         print("Available size: \(availableWidth) x \(availableHeight)")
         print("Grid size by width: \(gridSizeByWidth), by height: \(gridSizeByHeight)")
@@ -193,9 +194,9 @@ class GameScene: SKScene {
     }
 
     @objc func handleSwipe(_ gesture: UISwipeGestureRecognizer) {
-        // Ignore input during level transitions or game over
-        guard !isTransitioning && !isGameOver else {
-            print("Input ignored during transition or game over")
+        // Ignore input during level transitions, game over, or collecting
+        guard !isTransitioning && !isGameOver && !isCollecting else {
+            print("Input ignored during transition, game over, or collecting")
             return
         }
         
@@ -225,6 +226,9 @@ class GameScene: SKScene {
         let offsetX = (size.width - mazePixelWidth) / 2
         let offsetY = (size.height - mazePixelHeight) / 2
 
+        // First, determine item positions on walls
+        setupItemsOnWalls(maze: maze, offsetX: offsetX, offsetY: offsetY)
+
         for (row, rowData) in maze.enumerated() {
             for (col, cell) in rowData.enumerated() {
                 let position = CGPoint(
@@ -233,11 +237,11 @@ class GameScene: SKScene {
                 )
 
                 if cell == 1 {
-                    let isOverDestination = itemGridPositions.contains { $0.row == row + 1 && $0.col == col }
+                    let isOverDestination = itemGridPositions.contains { $0.row == row && $0.col == col }
 
                     let textureName: String
                     if isOverDestination {
-                        textureName = "" // e.g., house_1.png, house_2.png, ..., house_7.png
+                        textureName = randomHouseAsset()
                     } else {
                         textureName = randomWallAsset()
                     }
@@ -245,6 +249,15 @@ class GameScene: SKScene {
                     let wallTexture = SKTexture(imageNamed: textureName)
                     let wall = SKSpriteNode(texture: wallTexture, size: CGSize(width: gridSize, height: gridSize))
                     wall.position = position
+                    
+                    // Fix black background issue for house textures
+                    if isOverDestination {
+                        wall.colorBlendFactor = 0.0
+                        wall.color = .clear
+                        // Try to remove black backgrounds by setting blend mode
+                        wall.blendMode = .alpha
+                    }
+                    
                     wall.physicsBody = SKPhysicsBody(rectangleOf: wall.size)
                     wall.physicsBody?.categoryBitMask = 2
                     wall.physicsBody?.isDynamic = false
@@ -255,55 +268,63 @@ class GameScene: SKScene {
         }
         setupPathTiles(maze: maze, offsetX: offsetX, offsetY: offsetY)
 
-        // Only setup items if player exists
-        if let player = player {
-            // Convert player position to maze coordinates for finding reachable positions
-            let playerMazeX = max(0, min(mazeWidth - 1, Int((player.position.x - offsetX) / gridSize)))
-            let playerMazeY = max(0, min(mazeHeight - 1, Int((player.position.y - offsetY) / gridSize)))
-            let playerMazePosition = CGPoint(x: CGFloat(playerMazeX), y: CGFloat(playerMazeY))
-            
-            let reachablePositions = findReachablePositions(from: playerMazePosition, gridSize: gridSize, maze: maze)
-            setupItems(fromReachable: reachablePositions, offsetX: offsetX, offsetY: offsetY)
-        } else {
-            // If no player yet, use a default starting position for reachable positions
-            let defaultMazePosition = CGPoint(x: 1, y: 1)
-            let reachablePositions = findReachablePositions(from: defaultMazePosition, gridSize: gridSize, maze: maze)
-            setupItems(fromReachable: reachablePositions, offsetX: offsetX, offsetY: offsetY)
-        }
-
         nextMaze = getMazeLayout(for: level + 1)
     }
 
-    func setupItems(fromReachable positions: [CGPoint], offsetX: CGFloat, offsetY: CGFloat, count: Int = 10) { // Changed from setupDestinations
-        itemGridPositions.removeAll() // Changed from destinationGridPositions
+    func setupItemsOnWalls(maze: [[Int]], offsetX: CGFloat, offsetY: CGFloat, count: Int = 10) {
+        itemGridPositions.removeAll()
         
-        // Check if we have any reachable positions
-        guard !positions.isEmpty else {
-            print("No reachable positions found for items")
-            return
+        // Find all wall positions that are accessible (adjacent to paths)
+        var accessibleWallPositions: [CGPoint] = []
+        
+        for row in 1..<maze.count - 1 {
+            for col in 1..<maze[row].count - 1 {
+                if maze[row][col] == 1 { // This is a wall
+                    // Check if this wall is adjacent to at least one path
+                    let adjacentPositions = [
+                        (row - 1, col), // up
+                        (row + 1, col), // down
+                        (row, col - 1), // left
+                        (row, col + 1)  // right
+                    ]
+                    
+                    var hasAdjacentPath = false
+                    for (adjRow, adjCol) in adjacentPositions {
+                        if adjRow >= 0 && adjRow < maze.count &&
+                           adjCol >= 0 && adjCol < maze[adjRow].count &&
+                           maze[adjRow][adjCol] == 0 { // Adjacent cell is a path
+                            hasAdjacentPath = true
+                            break
+                        }
+                    }
+                    
+                    if hasAdjacentPath {
+                        accessibleWallPositions.append(CGPoint(x: col, y: row))
+                    }
+                }
+            }
         }
         
-        // Convert maze coordinates to screen coordinates
-        let screenPositions = positions.map { pos in
-            CGPoint(
-                x: offsetX + pos.x * gridSize,
-                y: offsetY + pos.y * gridSize
-            )
-        }
+        // Select random wall positions for items
+        let selectedPositions = Array(accessibleWallPositions.shuffled().prefix(count))
         
-        let selectedPositions = generatePoissonDiskPoints(from: screenPositions, minDistance: gridSize * 4, maxPoints: count)
-
-        for (index, pos) in selectedPositions.enumerated() {
-            let row = Int((offsetY + CGFloat(mazeHeight) * gridSize - pos.y)/gridSize)
-            let col = Int((pos.x - offsetX)/gridSize)
-            itemGridPositions.append((row: row, col: col)) // Changed from destinationGridPositions
-
-            // Create ItemNode with random initial time
+        for wallPos in selectedPositions {
+            let row = Int(wallPos.y)
+            let col = Int(wallPos.x)
+            itemGridPositions.append((row: row, col: col))
+            
+            // Create ItemNode
             let randomTime = Int.random(in: 16...25)
             let itemSize = CGSize(width: gridSize * 0.6, height: gridSize * 0.6)
             let item = ItemNode(size: itemSize, initialTime: randomTime)
-            item.position = pos
-            item.zPosition = 10 // Make sure items appear above other elements
+            
+            // Position item on top of the wall
+            let itemPosition = CGPoint(
+                x: offsetX + CGFloat(col) * gridSize + gridSize/2,
+                y: offsetY + CGFloat(maze.count - row - 1) * gridSize + gridSize/2
+            )
+            item.position = itemPosition
+            item.zPosition = 15 // Higher than walls to appear on top
             
             // Set up physics for item collection
             item.physicsBody?.categoryBitMask = ItemNode.categoryBitMask
@@ -328,10 +349,10 @@ class GameScene: SKScene {
             }
             
             addChild(item)
-            items.append(item) // Changed from destinations
+            items.append(item)
         }
         
-        print("Setup \(items.count) items on screen")
+        print("Setup \(items.count) items on walls")
     }
 
     func setupPathTiles(maze: [[Int]], offsetX: CGFloat, offsetY: CGFloat) {
@@ -367,8 +388,8 @@ class GameScene: SKScene {
     var isMoving = false
 
     func updatePlayerMovement() {
-        // Don't move during transitions, game over, or if already moving
-        guard !isTransitioning && !isGameOver && !isMoving else { return }
+        // Don't move during transitions, game over, collecting, or if already moving
+        guard !isTransitioning && !isGameOver && !isCollecting && !isMoving else { return }
 
         if let next = nextDirection, canMove(in: next) {
             currentDirection = next
@@ -419,20 +440,43 @@ class GameScene: SKScene {
     // MARK: - Item Collection
 
     func checkForItemCollection() {
-        guard !isGameOver else { return }
+        guard !isGameOver && !isCollecting else { return }
         
-        let collectionDistance: CGFloat = gridSize * 0.8 // Adjust this value as needed
+        // Calculate maze offset for proper grid positioning
+        let mazePixelWidth = CGFloat(mazeWidth) * gridSize
+        let mazePixelHeight = CGFloat(mazeHeight) * gridSize
+        let offsetX = (size.width - mazePixelWidth) / 2
+        let offsetY = (size.height - mazePixelHeight) / 2
+        
+        // Convert player position to grid coordinates
+        let playerGridX = Int((player.position.x - offsetX) / gridSize)
+        let playerGridY = Int((player.position.y - offsetY) / gridSize)
         
         for (index, item) in items.enumerated().reversed() {
-            let distance = hypot(player.position.x - item.position.x, player.position.y - item.position.y)
-            if distance <= collectionDistance {
+            // Convert item position to grid coordinates
+            let itemGridX = Int((item.position.x - offsetX) / gridSize)
+            let itemGridY = Int((item.position.y - offsetY) / gridSize)
+            
+            // Check if player is EXACTLY adjacent to the item (no diagonals, direct neighbors only)
+            let deltaX = playerGridX - itemGridX
+            let deltaY = playerGridY - itemGridY
+            
+            // Only allow collection if player is directly adjacent (not diagonal)
+            let isDirectlyAdjacent = (abs(deltaX) == 1 && deltaY == 0) || (deltaX == 0 && abs(deltaY) == 1)
+            
+            if isDirectlyAdjacent {
                 collectItem(at: index)
+                break // Only collect one item at a time
             }
         }
     }
 
     func collectItem(at index: Int) {
-        guard index < items.count, !isTransitioning, !isGameOver else { return }
+        guard index < items.count, !isTransitioning, !isGameOver, !isCollecting else { return }
+        
+        // Start collecting process - this stops player movement
+        isCollecting = true
+        stopPlayerMovement()
         
         let item = items[index]
         
@@ -449,6 +493,42 @@ class GameScene: SKScene {
         label.position = CGPoint(x: item.position.x, y: item.position.y + 30)
         addChild(label)
         
+        // Add collection effect
+        let collectEffect = SKShapeNode(circleOfRadius: gridSize * 0.5)
+        collectEffect.strokeColor = item.category.color
+        collectEffect.lineWidth = 3
+        collectEffect.fillColor = .clear
+        collectEffect.position = item.position
+        collectEffect.zPosition = 20
+        addChild(collectEffect)
+        
+        // Player collection animation - make player "glow" during collection
+        let playerGlow = SKShapeNode(rectOf: CGSize(width: gridSize + 4, height: gridSize + 4), cornerRadius: 12)
+        playerGlow.fillColor = .clear
+        playerGlow.strokeColor = item.category.color
+        playerGlow.lineWidth = 3
+        playerGlow.position = player.position
+        playerGlow.zPosition = player.zPosition + 1
+        addChild(playerGlow)
+        
+        // Animate collection effect
+        let expandAction = SKAction.scale(to: 2.0, duration: 0.3)
+        let fadeAction = SKAction.fadeOut(withDuration: 0.3)
+        let removeEffect = SKAction.removeFromParent()
+        let effectSequence = SKAction.sequence([SKAction.group([expandAction, fadeAction]), removeEffect])
+        collectEffect.run(effectSequence)
+        
+        // Animate player glow
+        let glowPulse = SKAction.sequence([
+            SKAction.scale(to: 1.1, duration: 0.1),
+            SKAction.scale(to: 1.0, duration: 0.1)
+        ])
+        let repeatPulse = SKAction.repeat(glowPulse, count: 2)
+        let fadeGlow = SKAction.fadeOut(withDuration: 0.2)
+        let removeGlow = SKAction.removeFromParent()
+        let glowSequence = SKAction.sequence([repeatPulse, fadeGlow, removeGlow])
+        playerGlow.run(glowSequence)
+        
         // Animate the score label
         let moveUp = SKAction.moveBy(x: 0, y: 30, duration: 0.8)
         let fadeOut = SKAction.fadeOut(withDuration: 0.8)
@@ -461,12 +541,24 @@ class GameScene: SKScene {
         items.remove(at: index)
         collectedItems += 1
         
-        print("Collected item, \(items.count) items remaining, \(collectedItems) collected")
+        print("Collected item from house, \(items.count) items remaining, \(collectedItems) collected")
         
-        // Check if all items are collected
-        if items.isEmpty && !isTransitioning {
-            checkLevelCompletion()
-        }
+        // Wait 0.5 seconds before allowing movement again
+        run(SKAction.sequence([
+            SKAction.wait(forDuration: 0.5),
+            SKAction.run { [weak self] in
+                self?.isCollecting = false
+                // Only restart movement if we're not transitioning or game over
+                if let self = self, !self.isTransitioning && !self.isGameOver {
+                    self.startPlayerMovement()
+                    
+                    // Check if all items are collected
+                    if self.items.isEmpty {
+                        self.checkLevelCompletion()
+                    }
+                }
+            }
+        ]))
     }
 
     // MARK: - Game Progress
@@ -503,6 +595,7 @@ class GameScene: SKScene {
         
         // Reset all movement state
         isMoving = false
+        isCollecting = false
         currentDirection = .right
         nextDirection = nil
         
@@ -687,6 +780,7 @@ class GameScene: SKScene {
         isGameOver = false
         isTransitioning = false
         isMoving = false
+        isCollecting = false
         currentDirection = .right
         nextDirection = nil
         collectedItems = 0
@@ -708,6 +802,7 @@ class GameScene: SKScene {
     func clearInputState() {
         nextDirection = nil
         currentDirection = .right
+        isCollecting = false
         print("Input state cleared")
     }
 
