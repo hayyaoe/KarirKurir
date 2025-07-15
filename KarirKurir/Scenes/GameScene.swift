@@ -1,323 +1,336 @@
 //
 //  GameScene.swift
-//  KarirKurir
+//  pacman
+//
+//  Created by Mahardika Putra Wardhana on 09/07/25.
 //
 
 import SpriteKit
 
 class GameScene: SKScene {
-    
-    // MARK: - Properties
-    private var player: PlayerNode!
-    private var inputController: InputController!
-    private var itemManager: ItemManager!
-    private var mazeNode: MazeNode!
-    private var mazeGenerator: MazeGenerator!
-    
-    private let tileSize = CGSize(width: 48, height: 48)
-    private var currentDirection: MoveDirection = .right
-    private var isAutoMoving = false
-    private var moveTimer: Timer?
-    
-    // Collection pause properties
-    private var isProcessingCollection = false
-    private let collectionPauseDuration: TimeInterval = 0.5 // 0.5 seconds pause
-    
-    private var score = 0
-    private var scoreLabel: SKLabelNode!
-    
-    // MARK: - Scene Lifecycle
+    // MARK: - Game Elements
+
+    var player: PlayerNode!
+
+    // get current maze -> render walls -> render destinations
+    var currentMaze: [[Int]] = []
+    var walls: [SKSpriteNode] = []
+    var destinations: [SKSpriteNode] = []
+    var destinationGridPositions: [(row: Int, col: Int)] = []
+    var pathTiles: [SKSpriteNode] = []
+
+    // Next Object
+    var nextMaze: [[Int]] = []
+    var nextWalls: [[SKSpriteNode]] = []
+    var nextDestinations: [[SKSpriteNode]] = []
+
+    // MARK: - Game State
+
+    var currentDirection: Direction = .right
+    var nextDirection: Direction?
+    var score: Int = 0
+    var level: Int = 1
+
+    // MARK: - UI
+
+    var scoreLabel: SKLabelNode!
+    var levelLabel: SKLabelNode!
+
+    // MARK: - Constants
+
+    let playerSpeed: CGFloat = 100.0
+    let gridSize: CGFloat = 30.0
+
+    // MARK: - Direction Enum
+
+    enum Direction {
+        case up, down, left, right
+
+        var vector: CGVector {
+            switch self {
+            case .up: return CGVector(dx: 0, dy: 1)
+            case .down: return CGVector(dx: 0, dy: -1)
+            case .left: return CGVector(dx: -1, dy: 0)
+            case .right: return CGVector(dx: 1, dy: 0)
+            }
+        }
+    }
+
+    // MARK: - Lifecycle
+
     override func didMove(to view: SKView) {
-        backgroundColor = .darkGray
-        setupPhysics()
-        setupMaze() // Generate and display the maze first
-        setupPlayer()
+        backgroundColor = .black
+        setupPlayer(position: CGPoint(x: 50, y: 50))
+        setupGestures()
+        currentMaze = getMazeLayout(for: level)
+        setupMaze(maze: currentMaze)
+        startPlayerMovement()
         setupUI()
-        setupInputController()
-        setupItemManager() // Must be after maze setup
-        startAutoMovement()
+        physicsWorld.contactDelegate = self
     }
-    
-    // MARK: - Setup
-    private func setupPhysics() {
-        physicsWorld.gravity = .zero
-    }
-    
-    private func setupMaze() {
-        // Calculate maze dimensions based on scene size and tile size
-        let mazeWidth = Int(frame.width / tileSize.width)
-        let mazeHeight = Int(frame.height / tileSize.height)
-        
-        mazeGenerator = MazeGenerator(width: mazeWidth, height: mazeHeight)
-        mazeNode = MazeNode(mazeGrid: mazeGenerator.grid, tileSize: tileSize)
-        
-        // Center the maze in the scene
-        let mazeTotalWidth = CGFloat(mazeGenerator.width) * tileSize.width
-        let mazeTotalHeight = CGFloat(mazeGenerator.height) * tileSize.height
-        mazeNode.position = CGPoint(
-            x: (frame.width - mazeTotalWidth) / 2,
-            y: (frame.height - mazeTotalHeight) / 2
-        )
-        
-        addChild(mazeNode)
-    }
-    
-    private func setupPlayer() {
-        player = PlayerNode(tileSize: tileSize)
-        // Start player at a valid path, e.g., (1, 1) in grid coordinates
-        let startGridPos = CGPoint(x: 1, y: 1)
-        player.position = convertGridToScene(gridPoint: startGridPos)
+
+    // MARK: - Setup Functions
+
+    func setupPlayer(position: CGPoint) {
+        player = PlayerNode(tileSize: CGSize(width: gridSize, height: gridSize))
+        player.position = position
         addChild(player)
     }
-    
-    private func setupUI() {
-        scoreLabel = SKLabelNode(fontNamed: "HelveticaNeue-Bold")
-        scoreLabel.fontSize = 24
-        scoreLabel.fontColor = .white
-        scoreLabel.position = CGPoint(x: frame.midX, y: frame.maxY - 80)
-        updateScore(by: 0)
+
+    func setupUI() {
+        scoreLabel = createLabel(text: "Score: 0", position: CGPoint(x: 100, y: size.height - 50))
+        levelLabel = createLabel(text: "Level: 1", position: CGPoint(x: 250, y: size.height - 50))
         addChild(scoreLabel)
+        addChild(levelLabel)
     }
-    
-    private func setupInputController() {
-        guard let view = view else { return }
-        inputController = InputController(view: view)
-        inputController.onDirectionChange = { [weak self] direction in
-            if let direction = direction {
-                self?.changeDirection(direction)
-            }
+
+    func createLabel(text: String, position: CGPoint) -> SKLabelNode {
+        let label = SKLabelNode(fontNamed: "Arial-BoldMT")
+        label.text = text
+        label.fontSize = 20
+        label.fontColor = .white
+        label.position = position
+        return label
+    }
+
+    func setupGestures() {
+        let directions: [UISwipeGestureRecognizer.Direction] = [.up, .down, .left, .right]
+        for dir in directions {
+            let swipe = UISwipeGestureRecognizer(target: self, action: #selector(handleSwipe))
+            swipe.direction = dir
+            view?.addGestureRecognizer(swipe)
         }
     }
-    
-    private func setupItemManager() {
-        // Pass the generator and tile size to the manager
-        itemManager = ItemManager(scene: self, mazeGenerator: mazeGenerator, tileSize: tileSize)
-        itemManager.startSpawningItems(interval: 5.0)
-    }
-    
-    // MARK: - Auto Movement
-    private func startAutoMovement() {
-        // Don't start if we're processing a collection
-        guard !isProcessingCollection else { return }
-        
-        isAutoMoving = true
-        moveTimer = Timer.scheduledTimer(withTimeInterval: 0.25, repeats: true) { [weak self] _ in
-            self?.movePlayerAutomatically()
+
+    @objc func handleSwipe(_ gesture: UISwipeGestureRecognizer) {
+        switch gesture.direction {
+        case .up: nextDirection = .up
+        case .down: nextDirection = .down
+        case .left: nextDirection = .left
+        case .right: nextDirection = .right
+        default: break
         }
     }
-    
-    private func stopAutoMovement() {
-        isAutoMoving = false
-        moveTimer?.invalidate()
-        moveTimer = nil
-    }
-    
-    private func movePlayerAutomatically() {
-        // Don't move if we're processing a collection
-        guard isAutoMoving, !isProcessingCollection,
-              let playerGridPos = convertSceneToGrid(scenePoint: player.position) else { return }
-        
-        // Check if the next tile in the current direction is a path
-        let nextGridPos = getNextGridPosition(from: playerGridPos, for: currentDirection)
-        
-        if isPath(at: nextGridPos) {
-            let targetScenePos = convertGridToScene(gridPoint: nextGridPos)
-            player.move(to: targetScenePos) { [weak self] in
-                self?.checkForItemsAtExactAdjacentTiles()
-            }
-        } else {
-            // Hit a wall, stop moving
-            stopAutoMovement()
-        }
-    }
-    
-    // MARK: - Input Handling
-    private func changeDirection(_ direction: MoveDirection) {
-        // Don't accept input while processing collection
-        guard !isProcessingCollection else { return }
-        
-        // Only change direction if the new direction is not a wall
-        guard let playerGridPos = convertSceneToGrid(scenePoint: player.position) else { return }
-        let nextGridPos = getNextGridPosition(from: playerGridPos, for: direction)
-        
-        if isPath(at: nextGridPos) {
-            if currentDirection != direction {
-                currentDirection = direction
-                player.showDirectionChange()
-            }
-            
-            if !isAutoMoving {
-                startAutoMovement()
+
+    func setupMaze(maze: [[Int]]) {
+        walls.forEach { $0.removeFromParent() }
+        destinations.forEach { $0.removeFromParent() }
+        pathTiles.forEach { $0.removeFromParent() }
+
+        walls.removeAll()
+        destinations.removeAll()
+        pathTiles.removeAll()
+
+        let wallColor = [UIColor.blue, .purple, .red, .green, .orange, .cyan][(level - 1) % 6]
+
+        for (row, rowData) in maze.enumerated() {
+            for (col, cell) in rowData.enumerated() {
+                let position = CGPoint(
+                    x: CGFloat(col) * gridSize + gridSize/2,
+                    y: CGFloat(maze.count - row - 1) * gridSize + gridSize/2
+                )
+
+                if cell == 1 {
+                    let isOverDestination = destinationGridPositions.contains { $0.row == row + 1 && $0.col == col }
+
+                    let textureName: String
+                    if isOverDestination {
+                        textureName = "" // e.g., house_1.png, house_2.png, ..., house_7.png
+                    } else {
+                        textureName = randomWallAsset()
+                    }
+
+                    let wallTexture = SKTexture(imageNamed: textureName)
+                    let wall = SKSpriteNode(texture: wallTexture, size: CGSize(width: gridSize, height: gridSize))
+                    wall.position = position
+                    wall.physicsBody = SKPhysicsBody(rectangleOf: wall.size)
+                    wall.physicsBody?.categoryBitMask = 2
+                    wall.physicsBody?.isDynamic = false
+                    walls.append(wall)
+                    addChild(wall)
+                }
             }
         }
+        setupPathTiles(maze: maze)
+
+        let reachablePositions = findReachablePositions(from: player.position, gridSize: gridSize, maze: maze)
+        setupDestinations(fromReachable: reachablePositions)
+
+        nextMaze = getMazeLayout(for: level + 1)
     }
-    
-    // MARK: - Collection Logic
-    private func checkForItemsAtExactAdjacentTiles() {
-        // Don't check for items if already processing a collection
-        guard !isProcessingCollection else { return }
-        
-        guard let playerGridPos = convertSceneToGrid(scenePoint: player.position) else { return }
-        
-        // Get the exact adjacent grid positions
-        let adjacentGridPoints = [
-            getNextGridPosition(from: playerGridPos, for: .up),
-            getNextGridPosition(from: playerGridPos, for: .down),
-            getNextGridPosition(from: playerGridPos, for: .left),
-            getNextGridPosition(from: playerGridPos, for: .right)
-        ]
-        
-        // Convert adjacent grid points to scene positions for comparison
-        let adjacentScenePositions = adjacentGridPoints.map { convertGridToScene(gridPoint: $0) }
-        
-        for node in children {
-            guard let item = node as? ItemNode else { continue }
-            
-            // Check if the item is at one of the exact adjacent positions
-            for adjacentPos in adjacentScenePositions {
-                // Use a very small tolerance for floating point comparison
-                if abs(item.position.x - adjacentPos.x) < 1 && abs(item.position.y - adjacentPos.y) < 1 {
-                    collect(item: item)
-                    return
+
+    func setupDestinations(fromReachable positions: [CGPoint], count: Int = 3) {
+        destinationGridPositions.removeAll()
+        let selectedPositions = generatePoissonDiskPoints(from: positions, minDistance: gridSize * 4, maxPoints: count)
+
+        for (index, pos) in selectedPositions.enumerated() {
+            let row = Int((size.height - pos.y)/gridSize)
+            let col = Int(pos.x/gridSize)
+            destinationGridPositions.append((row: row, col: col))
+
+            let color = UIColor(hue: CGFloat(index)/CGFloat(count), saturation: 1, brightness: 1, alpha: 1)
+            let dest = SKSpriteNode(color: color, size: CGSize(width: 20, height: 20))
+            dest.position = pos
+            dest.physicsBody = SKPhysicsBody(rectangleOf: dest.size)
+            dest.physicsBody?.categoryBitMask = 4
+            dest.physicsBody?.contactTestBitMask = 1
+            dest.physicsBody?.collisionBitMask = 0
+            dest.physicsBody?.isDynamic = false
+            dest.run(SKAction.repeatForever(.sequence([
+                .scale(to: 1.3, duration: 0.8),
+                .scale(to: 1.0, duration: 0.8)
+            ])))
+            addChild(dest)
+            destinations.append(dest)
+        }
+    }
+
+    func setupPathTiles(maze: [[Int]]) {
+        for row in 1 ..< maze.count - 1 {
+            for col in 1 ..< maze[row].count - 1 {
+                if let tileType = detectPathTileType(row: row, col: col, in: maze) {
+                    let spriteName = spriteNameFor(tileType: tileType)
+                    let tileTexture = SKTexture(imageNamed: spriteName)
+                    let tileNode = SKSpriteNode(texture: tileTexture, size: CGSize(width: gridSize, height: gridSize))
+                    tileNode.position = CGPoint(
+                        x: CGFloat(col) * gridSize + gridSize/2,
+                        y: CGFloat(maze.count - row - 1) * gridSize + gridSize/2
+                    )
+                    tileNode.zPosition = -1
+                    addChild(tileNode)
+                    pathTiles.append(tileNode) // ✅ Tambahkan ini
                 }
             }
         }
     }
-    
-    private func collect(item: ItemNode) {
-        // Set processing flag to prevent movement and further collections
-        isProcessingCollection = true
-        
-        // Stop current movement
-        stopAutoMovement()
-        
-        print("Collected an item! Processing collection...")
-        updateScore(by: item.category.points)
-        
-        // Add collection feedback animations
-        showCollectionFeedback(at: item.position, points: item.category.points)
-        
-        // Remove the item
-        item.removeFromParent()
-        
-        // Create a slight pulse effect on the player to show collection
-        let scaleUp = SKAction.scale(to: 1.2, duration: 0.1)
-        let scaleDown = SKAction.scale(to: 1.0, duration: 0.1)
-        let pulseSequence = SKAction.sequence([scaleUp, scaleDown])
-        player.run(pulseSequence)
-        
-        // Wait for the pause duration, then resume movement
-        DispatchQueue.main.asyncAfter(deadline: .now() + collectionPauseDuration) { [weak self] in
-            self?.resumeAfterCollection()
+
+    // MARK: - Player Movement
+
+    func startPlayerMovement() {
+        removeAction(forKey: "playerMovement")
+        let movementAction = SKAction.repeatForever(.sequence([
+            .run { [weak self] in self?.updatePlayerMovement() },
+            .wait(forDuration: 0.02)
+        ]))
+        run(movementAction, withKey: "playerMovement")
+    }
+
+    var isMoving = false
+
+    func updatePlayerMovement() {
+        guard !isMoving else { return }
+
+        if let next = nextDirection, canMove(in: next) {
+            currentDirection = next
+            nextDirection = nil
+        }
+
+        if canMove(in: currentDirection) {
+            let vector = currentDirection.vector
+            let targetPosition = CGPoint(
+                x: player.position.x + vector.dx * gridSize,
+                y: player.position.y + vector.dy * gridSize
+            )
+
+            isMoving = true
+            player.move(to: targetPosition) { [weak self] in
+                self?.isMoving = false
+            }
         }
     }
-    
-    private func resumeAfterCollection() {
-        print("Collection processing complete. Resuming movement...")
-        isProcessingCollection = false
-        
-        // Resume automatic movement
-        startAutoMovement()
-    }
-    
-    private func showCollectionFeedback(at position: CGPoint, points: Int) {
-        // Create a floating points label
-        let pointsLabel = SKLabelNode(fontNamed: "HelveticaNeue-Bold")
-        pointsLabel.text = "+\(points)"
-        pointsLabel.fontSize = 20
-        pointsLabel.fontColor = .systemGreen
-        pointsLabel.position = position
-        pointsLabel.zPosition = 100
-        addChild(pointsLabel)
-        
-        // Animate the label floating up and fading out
-        let moveUp = SKAction.moveBy(x: 0, y: 40, duration: 1.0)
-        let fadeOut = SKAction.fadeOut(withDuration: 1.0)
-        let scaleUp = SKAction.scale(to: 1.3, duration: 0.2)
-        let scaleDown = SKAction.scale(to: 1.0, duration: 0.8)
-        
-        let animations = SKAction.group([
-            moveUp,
-            fadeOut,
-            SKAction.sequence([scaleUp, scaleDown])
-        ])
-        
-        pointsLabel.run(animations) {
-            pointsLabel.removeFromParent()
-        }
-        
-        // Add a brief screen flash effect
-        let flashNode = SKSpriteNode(color: .white, size: frame.size)
-        flashNode.alpha = 0.0
-        flashNode.position = CGPoint(x: frame.midX, y: frame.midY)
-        flashNode.zPosition = 99
-        addChild(flashNode)
-        
-        let flashIn = SKAction.fadeAlpha(to: 0.3, duration: 0.1)
-        let flashOut = SKAction.fadeOut(withDuration: 0.2)
-        let flashSequence = SKAction.sequence([flashIn, flashOut])
-        
-        flashNode.run(flashSequence) {
-            flashNode.removeFromParent()
-        }
-    }
-    
-    private func updateScore(by points: Int) {
-        score += points
-        scoreLabel.text = "Score: \(score)"
-        
-        // Add a brief scale animation to the score label
-        let scaleUp = SKAction.scale(to: 1.1, duration: 0.1)
-        let scaleDown = SKAction.scale(to: 1.0, duration: 0.1)
-        let scaleSequence = SKAction.sequence([scaleUp, scaleDown])
-        scoreLabel.run(scaleSequence)
-    }
-    
-    // MARK: - Maze and Coordinate Helpers
-    
-    /// Converts a scene point (pixels) to maze grid coordinates (integers).
-    private func convertSceneToGrid(scenePoint: CGPoint) -> CGPoint? {
-        guard let mazeNode = mazeNode else { return nil }
-        let localPoint = self.convert(scenePoint, to: mazeNode)
-        let gridX = Int(round(localPoint.x / tileSize.width))
-        let gridY = Int(round(localPoint.y / tileSize.height))
-        return CGPoint(x: gridX, y: gridY)
-    }
-    
-    /// Converts maze grid coordinates (integers) to a scene point (pixels).
-    /// This now returns the center of the tile, not the corner.
-    private func convertGridToScene(gridPoint: CGPoint) -> CGPoint {
-        let localPoint = CGPoint(
-            x: gridPoint.x * tileSize.width,
-            y: gridPoint.y * tileSize.height
+
+    func canMove(in direction: Direction) -> Bool {
+        let vector = direction.vector
+        let future = CGPoint(
+            x: player.position.x + vector.dx * (gridSize/2 + 5),
+            y: player.position.y + vector.dy * (gridSize/2 + 5)
         )
-        return self.convert(localPoint, from: mazeNode)
-    }
-    
-    /// Checks if a given grid coordinate is a valid path.
-    private func isPath(at gridPoint: CGPoint) -> Bool {
-        let x = Int(gridPoint.x)
-        let y = Int(gridPoint.y)
-        guard x >= 0, x < mazeGenerator.width, y >= 0, y < mazeGenerator.height else {
-            return false // Out of bounds
+
+        if future.x < 0 || future.x > size.width || future.y < 0 || future.y > size.height {
+            return false
         }
-        return mazeGenerator.grid[x][y] == .path
+
+        return !walls.contains(where: { $0.frame.contains(future) })
     }
-    
-    /// Calculates the next grid position based on a direction.
-    private func getNextGridPosition(from gridPos: CGPoint, for direction: MoveDirection) -> CGPoint {
-        var nextPos = gridPos
-        switch direction {
-        case .up:    nextPos.y += 1
-        case .down:  nextPos.y -= 1
-        case .left:  nextPos.x -= 1
-        case .right: nextPos.x += 1
+
+    // MARK: - Game Progress
+
+    func reachDestination(at index: Int) {
+        score += 100 * level
+        scoreLabel.text = "Score: \(score)"
+        destinations[index].removeFromParent()
+        destinations.remove(at: index)
+
+        let label = SKLabelNode(fontNamed: "Arial-BoldMT")
+        label.text = "Destination Reached!"
+        label.fontSize = 25
+        label.fontColor = .green
+        label.position = CGPoint(x: size.width/2, y: size.height/2 + 100)
+        addChild(label)
+        label.run(.sequence([.fadeOut(withDuration: 1.5), .removeFromParent()]))
+
+        if destinations.isEmpty {
+            nextLevel()
         }
-        return nextPos
     }
-    
-    deinit {
-        stopAutoMovement()
-        itemManager.stopSpawning()
+
+    func nextLevel() {
+        level += 1
+        levelLabel.text = "Level: \(level)"
+
+        run(.sequence([
+            .wait(forDuration: 0.5),
+            .run { [weak self] in
+                self?.currentMaze = self?.nextMaze ?? []
+                self?.setupMaze(maze: self!.currentMaze)
+                self?.findSafeStartingPosition()
+                self?.currentDirection = .right
+                self?.nextDirection = nil
+            }
+        ]))
+    }
+
+    func findSafeStartingPosition() {
+        for row in stride(from: currentMaze.count - 2, to: 0, by: -1) {
+            for col in 1 ..< currentMaze[row].count {
+                if currentMaze[row][col] == 0 {
+                    let pos = CGPoint(
+                        x: CGFloat(col) * gridSize + gridSize/2,
+                        y: CGFloat(currentMaze.count - row - 1) * gridSize + gridSize/2
+                    )
+                    let safe = destinations.allSatisfy {
+                        hypot($0.position.x - pos.x, $0.position.y - pos.y) > gridSize * 3
+                    }
+                    if safe {
+                        player.removeFromParent()
+                        setupPlayer(position: pos)
+                        startPlayerMovement()
+                        return
+                    }
+                }
+            }
+        }
+        player.position = CGPoint(x: gridSize + gridSize/2, y: gridSize + gridSize/2)
+    }
+
+    override func update(_ currentTime: TimeInterval) {
+        // Can be used for game timers, future AI, etc.
+    }
+}
+
+// MARK: - Contact Handling
+
+extension GameScene: SKPhysicsContactDelegate {
+    func didBegin(_ contact: SKPhysicsContact) {
+        let (a, b) = (contact.bodyA, contact.bodyB)
+        if a.categoryBitMask == 1 && b.categoryBitMask == 4,
+           let index = destinations.firstIndex(where: { $0 == b.node })
+        {
+            reachDestination(at: index)
+        } else if b.categoryBitMask == 1 && a.categoryBitMask == 4,
+                  let index = destinations.firstIndex(where: { $0 == a.node })
+        {
+            reachDestination(at: index)
+        }
     }
 }

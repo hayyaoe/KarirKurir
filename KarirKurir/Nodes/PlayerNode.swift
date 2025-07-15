@@ -2,15 +2,11 @@
 //  PlayerNode.swift
 //  KarirKurir
 //
-
 import SpriteKit
 
 class PlayerNode: SKSpriteNode {
     private let moveDuration: TimeInterval = 0.18
     private var directionIndicator: SKSpriteNode!
-    
-    // Add physics category
-    static let category: UInt32 = 0x1 << 0
     
     init(tileSize: CGSize) {
         let playerSize = CGSize(width: tileSize.width * 0.8, height: tileSize.height * 0.8)
@@ -20,6 +16,7 @@ class PlayerNode: SKSpriteNode {
         setupPhysics(playerSize: playerSize)
     }
     
+    @available(*, unavailable)
     required init?(coder aDecoder: NSCoder) {
         fatalError("init(coder:) has not been implemented")
     }
@@ -49,15 +46,15 @@ class PlayerNode: SKSpriteNode {
     }
     
     private func setupPhysics(playerSize: CGSize) {
-        self.physicsBody = SKPhysicsBody(rectangleOf: playerSize)
-        self.physicsBody?.isDynamic = true
-        self.physicsBody?.allowsRotation = false
-        self.physicsBody?.affectedByGravity = false
+        physicsBody = SKPhysicsBody(rectangleOf: playerSize)
+        physicsBody?.affectedByGravity = false
+        physicsBody?.isDynamic = true
+        physicsBody?.allowsRotation = false
+        physicsBody?.categoryBitMask = 1 // Player category
+        physicsBody?.collisionBitMask = 2 // Collide with walls
+        physicsBody?.contactTestBitMask = 2 | 4 // Test contact with walls and destination
         
-        // Assign physics categories
-        self.physicsBody?.categoryBitMask = PlayerNode.category
-        self.physicsBody?.collisionBitMask = ItemNode.categoryBitMask | MazeNode.wallCategory// Collide with items
-        self.physicsBody?.contactTestBitMask = 0 // We will handle collection by proximity, not contact
+        print("Player physics setup: categoryBitMask = 1, contactTestBitMask = 6")
     }
     
     func move(to targetPosition: CGPoint, completion: @escaping () -> Void) {
@@ -96,7 +93,7 @@ class PlayerNode: SKSpriteNode {
         directionIndicator.run(rotateAction)
         
         // Position indicator based on direction
-        let indicatorDistance: CGFloat = size.width / 3
+        let indicatorDistance: CGFloat = size.width/3
         let indicatorX = cos(angle) * indicatorDistance
         let indicatorY = sin(angle) * indicatorDistance
         
