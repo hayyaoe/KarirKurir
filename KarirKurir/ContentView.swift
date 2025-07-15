@@ -11,16 +11,22 @@ import SwiftUI
 struct ContentView: View {
     var scene: SKScene {
         let scene = GameScene()
-        scene.size = CGSize(width: UIScreen.main.bounds.width, height: UIScreen.main.bounds.height)
-        scene.scaleMode = .aspectFit
+        
+        let screenBounds = UIScreen.main.bounds
+        let screenSize = CGSize(width: screenBounds.width, height: screenBounds.height)
+        scene.size = screenSize
+        scene.scaleMode = .resizeFill
         return scene
     }
 
     var body: some View {
-        VStack {
+        GeometryReader { geometry in
             SpriteView(scene: scene)
-                .ignoresSafeArea()
+                .frame(width: geometry.size.width, height: geometry.size.height)
+                .clipped()
         }
+        .ignoresSafeArea(.all) // Changed to ignore all safe areas
+        .statusBarHidden() // Hide status bar for full screen experience
     }
 }
 

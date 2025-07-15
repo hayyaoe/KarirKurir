@@ -1,6 +1,6 @@
 //
 //  GameScene.swift
-//  pacman
+//  KarirKurir
 //
 //  Created by Mahardika Putra Wardhana on 09/07/25.
 //
@@ -15,14 +15,16 @@ class GameScene: SKScene {
     // get current maze -> render walls -> render destinations
     var currentMaze: [[Int]] = []
     var walls: [SKSpriteNode] = []
-    var destinations: [SKSpriteNode] = []
-    var destinationGridPositions: [(row: Int, col: Int)] = []
+    var items: [ItemNode] = [] // Changed from destinations to items
+    var itemGridPositions: [(row: Int, col: Int)] = [] // Changed from destinationGridPositions
     var pathTiles: [SKSpriteNode] = []
+    var collectedItems: Int = 0
+    var expiredItems: Int = 0
 
     // Next Object
     var nextMaze: [[Int]] = []
     var nextWalls: [[SKSpriteNode]] = []
-    var nextDestinations: [[SKSpriteNode]] = []
+    var nextItems: [[ItemNode]] = [] // Changed from nextDestinations
 
     // MARK: - Game State
 
@@ -30,16 +32,24 @@ class GameScene: SKScene {
     var nextDirection: Direction?
     var score: Int = 0
     var level: Int = 1
+    var health: Int = 3
+    var isTransitioning: Bool = false // Add transition state flag
+    var isGameOver: Bool = false
 
     // MARK: - UI
 
     var scoreLabel: SKLabelNode!
     var levelLabel: SKLabelNode!
+    var healthLabel: SKLabelNode!
 
     // MARK: - Constants
 
     let playerSpeed: CGFloat = 100.0
-    let gridSize: CGFloat = 30.0
+    var gridSize: CGFloat = 30.0 // This will be calculated dynamically
+
+    // MARK: - Maze dimensions
+    let mazeWidth: Int = 20
+    let mazeHeight: Int = 11
 
     // MARK: - Direction Enum
 
@@ -60,28 +70,108 @@ class GameScene: SKScene {
 
     override func didMove(to view: SKView) {
         backgroundColor = .black
-        setupPlayer(position: CGPoint(x: 50, y: 50))
+        
+        // Calculate grid size based on screen dimensions
+        calculateOptimalGridSize()
+        
         setupGestures()
         currentMaze = getMazeLayout(for: level)
+        
+        // Setup initial player position first
+        setupInitialPlayerPosition()
+        
+        // Then setup maze with player position known
         setupMaze(maze: currentMaze)
+        
         startPlayerMovement()
         setupUI()
         physicsWorld.contactDelegate = self
     }
 
+    func setupInitialPlayerPosition() {
+        let mazePixelWidth = CGFloat(mazeWidth) * gridSize
+        let mazePixelHeight = CGFloat(mazeHeight) * gridSize
+        let offsetX = (size.width - mazePixelWidth) / 2
+        let offsetY = (size.height - mazePixelHeight) / 2
+        
+        // Ensure maze is not empty
+        guard !currentMaze.isEmpty, !currentMaze[0].isEmpty else {
+            print("Maze is empty, using fallback position")
+            let fallbackPos = CGPoint(x: offsetX + gridSize * 1.5, y: offsetY + gridSize * 1.5)
+            setupPlayer(position: fallbackPos)
+            return
+        }
+        
+        // Find the first open path position from the bottom-left area
+        for row in stride(from: currentMaze.count - 2, to: 0, by: -1) {
+            for col in 1 ..< min(5, currentMaze[row].count) { // Check only first few columns
+                if row >= 0 && row < currentMaze.count &&
+                   col >= 0 && col < currentMaze[row].count &&
+                   currentMaze[row][col] == 0 {
+                    let pos = CGPoint(
+                        x: offsetX + CGFloat(col) * gridSize + gridSize/2,
+                        y: offsetY + CGFloat(currentMaze.count - row - 1) * gridSize + gridSize/2
+                    )
+                    setupPlayer(position: pos)
+                    return
+                }
+            }
+        }
+        
+        // Fallback to a safe default position
+        let fallbackPos = CGPoint(x: offsetX + gridSize * 1.5, y: offsetY + gridSize * 1.5)
+        setupPlayer(position: fallbackPos)
+    }
+
+    // MARK: - Dynamic Sizing
+    
+    func calculateOptimalGridSize() {
+        // For landscape orientation, ensure we use the correct dimensions
+        let sceneWidth = size.width
+        let sceneHeight = size.height
+        
+        print("Scene size in calculateOptimalGridSize: \(sceneWidth) x \(sceneHeight)")
+        
+        // Calculate grid size to fit the screen optimally
+        let availableWidth = sceneWidth * 0.90 // Leave 10% margin
+        let availableHeight = sceneHeight * 0.80 // Leave 20% margin for UI
+        
+        let gridSizeByWidth = availableWidth / CGFloat(mazeWidth)
+        let gridSizeByHeight = availableHeight / CGFloat(mazeHeight)
+        
+        // Use the smaller value to ensure the maze fits on screen
+        gridSize = min(gridSizeByWidth, gridSizeByHeight)
+        
+        // Ensure minimum grid size for playability
+        gridSize = max(gridSize, 20.0)
+        
+        print("Available size: \(availableWidth) x \(availableHeight)")
+        print("Grid size by width: \(gridSizeByWidth), by height: \(gridSizeByHeight)")
+        print("Final grid size: \(gridSize)")
+    }
+
     // MARK: - Setup Functions
 
     func setupPlayer(position: CGPoint) {
+        // Remove existing player if it exists
+        player?.removeFromParent()
+        
         player = PlayerNode(tileSize: CGSize(width: gridSize, height: gridSize))
         player.position = position
         addChild(player)
+        
+        print("Player setup at position: \(position)")
     }
 
     func setupUI() {
-        scoreLabel = createLabel(text: "Score: 0", position: CGPoint(x: 100, y: size.height - 50))
-        levelLabel = createLabel(text: "Level: 1", position: CGPoint(x: 250, y: size.height - 50))
+        // Position UI elements relative to screen size
+        let margin: CGFloat = 20
+        scoreLabel = createLabel(text: "Score: 0", position: CGPoint(x: margin + 100, y: size.height - 50))
+        levelLabel = createLabel(text: "Level: 1", position: CGPoint(x: margin + 250, y: size.height - 50))
+        healthLabel = createLabel(text: "❤️ \(health)", position: CGPoint(x: margin + 400, y: size.height - 50))
         addChild(scoreLabel)
         addChild(levelLabel)
+        addChild(healthLabel)
     }
 
     func createLabel(text: String, position: CGPoint) -> SKLabelNode {
@@ -103,6 +193,12 @@ class GameScene: SKScene {
     }
 
     @objc func handleSwipe(_ gesture: UISwipeGestureRecognizer) {
+        // Ignore input during level transitions or game over
+        guard !isTransitioning && !isGameOver else {
+            print("Input ignored during transition or game over")
+            return
+        }
+        
         switch gesture.direction {
         case .up: nextDirection = .up
         case .down: nextDirection = .down
@@ -114,24 +210,30 @@ class GameScene: SKScene {
 
     func setupMaze(maze: [[Int]]) {
         walls.forEach { $0.removeFromParent() }
-        destinations.forEach { $0.removeFromParent() }
+        items.forEach { $0.removeFromParent() } // Changed from destinations
         pathTiles.forEach { $0.removeFromParent() }
 
         walls.removeAll()
-        destinations.removeAll()
+        items.removeAll() // Changed from destinations
         pathTiles.removeAll()
 
         let wallColor = [UIColor.blue, .purple, .red, .green, .orange, .cyan][(level - 1) % 6]
+        
+        // Center the maze on screen
+        let mazePixelWidth = CGFloat(mazeWidth) * gridSize
+        let mazePixelHeight = CGFloat(mazeHeight) * gridSize
+        let offsetX = (size.width - mazePixelWidth) / 2
+        let offsetY = (size.height - mazePixelHeight) / 2
 
         for (row, rowData) in maze.enumerated() {
             for (col, cell) in rowData.enumerated() {
                 let position = CGPoint(
-                    x: CGFloat(col) * gridSize + gridSize/2,
-                    y: CGFloat(maze.count - row - 1) * gridSize + gridSize/2
+                    x: offsetX + CGFloat(col) * gridSize + gridSize/2,
+                    y: offsetY + CGFloat(maze.count - row - 1) * gridSize + gridSize/2
                 )
 
                 if cell == 1 {
-                    let isOverDestination = destinationGridPositions.contains { $0.row == row + 1 && $0.col == col }
+                    let isOverDestination = itemGridPositions.contains { $0.row == row + 1 && $0.col == col }
 
                     let textureName: String
                     if isOverDestination {
@@ -151,41 +253,88 @@ class GameScene: SKScene {
                 }
             }
         }
-        setupPathTiles(maze: maze)
+        setupPathTiles(maze: maze, offsetX: offsetX, offsetY: offsetY)
 
-        let reachablePositions = findReachablePositions(from: player.position, gridSize: gridSize, maze: maze)
-        setupDestinations(fromReachable: reachablePositions)
+        // Only setup items if player exists
+        if let player = player {
+            // Convert player position to maze coordinates for finding reachable positions
+            let playerMazeX = max(0, min(mazeWidth - 1, Int((player.position.x - offsetX) / gridSize)))
+            let playerMazeY = max(0, min(mazeHeight - 1, Int((player.position.y - offsetY) / gridSize)))
+            let playerMazePosition = CGPoint(x: CGFloat(playerMazeX), y: CGFloat(playerMazeY))
+            
+            let reachablePositions = findReachablePositions(from: playerMazePosition, gridSize: gridSize, maze: maze)
+            setupItems(fromReachable: reachablePositions, offsetX: offsetX, offsetY: offsetY)
+        } else {
+            // If no player yet, use a default starting position for reachable positions
+            let defaultMazePosition = CGPoint(x: 1, y: 1)
+            let reachablePositions = findReachablePositions(from: defaultMazePosition, gridSize: gridSize, maze: maze)
+            setupItems(fromReachable: reachablePositions, offsetX: offsetX, offsetY: offsetY)
+        }
 
         nextMaze = getMazeLayout(for: level + 1)
     }
 
-    func setupDestinations(fromReachable positions: [CGPoint], count: Int = 3) {
-        destinationGridPositions.removeAll()
-        let selectedPositions = generatePoissonDiskPoints(from: positions, minDistance: gridSize * 4, maxPoints: count)
+    func setupItems(fromReachable positions: [CGPoint], offsetX: CGFloat, offsetY: CGFloat, count: Int = 10) { // Changed from setupDestinations
+        itemGridPositions.removeAll() // Changed from destinationGridPositions
+        
+        // Check if we have any reachable positions
+        guard !positions.isEmpty else {
+            print("No reachable positions found for items")
+            return
+        }
+        
+        // Convert maze coordinates to screen coordinates
+        let screenPositions = positions.map { pos in
+            CGPoint(
+                x: offsetX + pos.x * gridSize,
+                y: offsetY + pos.y * gridSize
+            )
+        }
+        
+        let selectedPositions = generatePoissonDiskPoints(from: screenPositions, minDistance: gridSize * 4, maxPoints: count)
 
         for (index, pos) in selectedPositions.enumerated() {
-            let row = Int((size.height - pos.y)/gridSize)
-            let col = Int(pos.x/gridSize)
-            destinationGridPositions.append((row: row, col: col))
+            let row = Int((offsetY + CGFloat(mazeHeight) * gridSize - pos.y)/gridSize)
+            let col = Int((pos.x - offsetX)/gridSize)
+            itemGridPositions.append((row: row, col: col)) // Changed from destinationGridPositions
 
-            let color = UIColor(hue: CGFloat(index)/CGFloat(count), saturation: 1, brightness: 1, alpha: 1)
-            let dest = SKSpriteNode(color: color, size: CGSize(width: 20, height: 20))
-            dest.position = pos
-            dest.physicsBody = SKPhysicsBody(rectangleOf: dest.size)
-            dest.physicsBody?.categoryBitMask = 4
-            dest.physicsBody?.contactTestBitMask = 1
-            dest.physicsBody?.collisionBitMask = 0
-            dest.physicsBody?.isDynamic = false
-            dest.run(SKAction.repeatForever(.sequence([
-                .scale(to: 1.3, duration: 0.8),
-                .scale(to: 1.0, duration: 0.8)
-            ])))
-            addChild(dest)
-            destinations.append(dest)
+            // Create ItemNode with random initial time
+            let randomTime = Int.random(in: 16...25)
+            let itemSize = CGSize(width: gridSize * 0.6, height: gridSize * 0.6)
+            let item = ItemNode(size: itemSize, initialTime: randomTime)
+            item.position = pos
+            item.zPosition = 10 // Make sure items appear above other elements
+            
+            // Set up physics for item collection
+            item.physicsBody?.categoryBitMask = ItemNode.categoryBitMask
+            item.physicsBody?.contactTestBitMask = PlayerNode.category
+            item.physicsBody?.collisionBitMask = 0
+            
+            // Handle item expiration
+            item.onTimerExpired = { [weak self, weak item] in
+                guard let self = self, let item = item, !self.isTransitioning, !self.isGameOver else { return }
+                if let index = self.items.firstIndex(of: item) {
+                    self.items.remove(at: index)
+                }
+                item.removeFromParent()
+                self.expiredItems += 1
+                
+                print("Item expired, \(self.items.count) items remaining, \(self.expiredItems) expired")
+                
+                // Check if all items are gone (collected or expired)
+                if self.items.isEmpty && !self.isTransitioning {
+                    self.checkLevelCompletion()
+                }
+            }
+            
+            addChild(item)
+            items.append(item) // Changed from destinations
         }
+        
+        print("Setup \(items.count) items on screen")
     }
 
-    func setupPathTiles(maze: [[Int]]) {
+    func setupPathTiles(maze: [[Int]], offsetX: CGFloat, offsetY: CGFloat) {
         for row in 1 ..< maze.count - 1 {
             for col in 1 ..< maze[row].count - 1 {
                 if let tileType = detectPathTileType(row: row, col: col, in: maze) {
@@ -193,12 +342,12 @@ class GameScene: SKScene {
                     let tileTexture = SKTexture(imageNamed: spriteName)
                     let tileNode = SKSpriteNode(texture: tileTexture, size: CGSize(width: gridSize, height: gridSize))
                     tileNode.position = CGPoint(
-                        x: CGFloat(col) * gridSize + gridSize/2,
-                        y: CGFloat(maze.count - row - 1) * gridSize + gridSize/2
+                        x: offsetX + CGFloat(col) * gridSize + gridSize/2,
+                        y: offsetY + CGFloat(maze.count - row - 1) * gridSize + gridSize/2
                     )
                     tileNode.zPosition = -1
                     addChild(tileNode)
-                    pathTiles.append(tileNode) // ✅ Tambahkan ini
+                    pathTiles.append(tileNode)
                 }
             }
         }
@@ -218,7 +367,8 @@ class GameScene: SKScene {
     var isMoving = false
 
     func updatePlayerMovement() {
-        guard !isMoving else { return }
+        // Don't move during transitions, game over, or if already moving
+        guard !isTransitioning && !isGameOver && !isMoving else { return }
 
         if let next = nextDirection, canMove(in: next) {
             currentDirection = next
@@ -235,6 +385,7 @@ class GameScene: SKScene {
             isMoving = true
             player.move(to: targetPosition) { [weak self] in
                 self?.isMoving = false
+                self?.checkForItemCollection() // Check for item collection after each move
             }
         }
     }
@@ -246,71 +397,350 @@ class GameScene: SKScene {
             y: player.position.y + vector.dy * (gridSize/2 + 5)
         )
 
-        if future.x < 0 || future.x > size.width || future.y < 0 || future.y > size.height {
+        // Calculate maze bounds
+        let mazePixelWidth = CGFloat(mazeWidth) * gridSize
+        let mazePixelHeight = CGFloat(mazeHeight) * gridSize
+        let offsetX = (size.width - mazePixelWidth) / 2
+        let offsetY = (size.height - mazePixelHeight) / 2
+        
+        let mazeMinX = offsetX
+        let mazeMaxX = offsetX + mazePixelWidth
+        let mazeMinY = offsetY
+        let mazeMaxY = offsetY + mazePixelHeight
+
+        // Check if future position is within maze bounds
+        if future.x < mazeMinX || future.x > mazeMaxX || future.y < mazeMinY || future.y > mazeMaxY {
             return false
         }
 
         return !walls.contains(where: { $0.frame.contains(future) })
     }
 
+    // MARK: - Item Collection
+
+    func checkForItemCollection() {
+        guard !isGameOver else { return }
+        
+        let collectionDistance: CGFloat = gridSize * 0.8 // Adjust this value as needed
+        
+        for (index, item) in items.enumerated().reversed() {
+            let distance = hypot(player.position.x - item.position.x, player.position.y - item.position.y)
+            if distance <= collectionDistance {
+                collectItem(at: index)
+            }
+        }
+    }
+
+    func collectItem(at index: Int) {
+        guard index < items.count, !isTransitioning, !isGameOver else { return }
+        
+        let item = items[index]
+        
+        // Calculate score based on item category
+        let points = item.category.points * 10 * level
+        score += points
+        scoreLabel.text = "Score: \(score)"
+        
+        // Show collection feedback
+        let label = SKLabelNode(fontNamed: "Arial-BoldMT")
+        label.text = "+\(points)"
+        label.fontSize = 20
+        label.fontColor = item.category.color
+        label.position = CGPoint(x: item.position.x, y: item.position.y + 30)
+        addChild(label)
+        
+        // Animate the score label
+        let moveUp = SKAction.moveBy(x: 0, y: 30, duration: 0.8)
+        let fadeOut = SKAction.fadeOut(withDuration: 0.8)
+        let remove = SKAction.removeFromParent()
+        let sequence = SKAction.sequence([SKAction.group([moveUp, fadeOut]), remove])
+        label.run(sequence)
+        
+        // Remove the item and track collection
+        item.removeFromParent()
+        items.remove(at: index)
+        collectedItems += 1
+        
+        print("Collected item, \(items.count) items remaining, \(collectedItems) collected")
+        
+        // Check if all items are collected
+        if items.isEmpty && !isTransitioning {
+            checkLevelCompletion()
+        }
+    }
+
     // MARK: - Game Progress
 
-    func reachDestination(at index: Int) {
-        score += 100 * level
-        scoreLabel.text = "Score: \(score)"
-        destinations[index].removeFromParent()
-        destinations.remove(at: index)
+    func nextLevel() {
+        // IMMEDIATELY stop all player movement and input processing
+        isTransitioning = true
+        print("Starting level transition to level \(level + 1)")
+        stopPlayerMovement()
+        clearInputState()
+        
+        level += 1
+        levelLabel.text = "Level: \(level)"
 
+        // Show level complete message
         let label = SKLabelNode(fontNamed: "Arial-BoldMT")
-        label.text = "Destination Reached!"
+        label.text = "Level Complete!"
         label.fontSize = 25
-        label.fontColor = .green
+        label.fontColor = .yellow
         label.position = CGPoint(x: size.width/2, y: size.height/2 + 100)
         addChild(label)
         label.run(.sequence([.fadeOut(withDuration: 1.5), .removeFromParent()]))
 
-        if destinations.isEmpty {
-            nextLevel()
-        }
-    }
-
-    func nextLevel() {
-        level += 1
-        levelLabel.text = "Level: \(level)"
-
         run(.sequence([
             .wait(forDuration: 0.5),
             .run { [weak self] in
-                self?.currentMaze = self?.nextMaze ?? []
-                self?.setupMaze(maze: self!.currentMaze)
-                self?.findSafeStartingPosition()
-                self?.currentDirection = .right
-                self?.nextDirection = nil
+                self?.setupNewLevel()
             }
         ]))
     }
+    
+    func setupNewLevel() {
+        print("Setting up new level \(level)")
+        
+        // Reset all movement state
+        isMoving = false
+        currentDirection = .right
+        nextDirection = nil
+        
+        // Reset item counters for the new level
+        collectedItems = 0
+        expiredItems = 0
+        
+        // Setup new maze
+        currentMaze = nextMaze.isEmpty ? getMazeLayout(for: level) : nextMaze
+        setupMaze(maze: currentMaze)
+        findSafeStartingPosition()
+        
+        // Small delay before restarting movement to ensure everything is settled
+        run(.sequence([
+            .wait(forDuration: 0.1),
+            .run { [weak self] in
+                self?.startPlayerMovement()
+                self?.isTransitioning = false // Re-enable input
+                print("Level transition complete - input and movement re-enabled")
+            }
+        ]))
+    }
+    
+    func stopPlayerMovement() {
+        removeAction(forKey: "playerMovement")
+        player?.removeAllActions()
+        isMoving = false
+        print("Player movement stopped")
+    }
+    
+    func checkLevelCompletion() {
+        guard !isTransitioning && !isGameOver else { return }
+        
+        let totalItemsThisLevel = collectedItems + expiredItems
+        print("Level completion check: \(collectedItems) collected, \(expiredItems) expired, total: \(totalItemsThisLevel)")
+        
+        // If any items expired, lose health
+        if expiredItems > 0 {
+            health -= 1
+            healthLabel.text = "❤️ \(health)"
+            
+            // Show health loss feedback
+            showHealthLossMessage()
+            
+            print("Health lost! Current health: \(health)")
+            
+            // Check for game over
+            if health <= 0 {
+                gameOver()
+                return
+            }
+        }
+        
+        // Reset counters for next level
+        collectedItems = 0
+        expiredItems = 0
+        
+        // Proceed to next level
+        print("Proceeding to next level")
+        nextLevel()
+    }
+    
+    func showHealthLossMessage() {
+        let label = SKLabelNode(fontNamed: "Arial-BoldMT")
+        label.text = "Health Lost! ❤️ \(health)"
+        label.fontSize = 22
+        label.fontColor = .red
+        label.position = CGPoint(x: size.width/2, y: size.height/2)
+        addChild(label)
+        
+        // Animate the health loss message
+        let scaleUp = SKAction.scale(to: 1.2, duration: 0.2)
+        let scaleDown = SKAction.scale(to: 1.0, duration: 0.2)
+        let fadeOut = SKAction.fadeOut(withDuration: 1.0)
+        let remove = SKAction.removeFromParent()
+        let sequence = SKAction.sequence([scaleUp, scaleDown, fadeOut, remove])
+        label.run(sequence)
+    }
+    
+    func gameOver() {
+        isGameOver = true
+        stopPlayerMovement()
+        clearInputState()
+        
+        print("Game Over!")
+        
+        // Create game over modal
+        createGameOverModal()
+    }
+    
+    func createGameOverModal() {
+        // Create semi-transparent background
+        let overlay = SKShapeNode(rect: CGRect(x: 0, y: 0, width: size.width, height: size.height))
+        overlay.fillColor = SKColor.black
+        overlay.alpha = 0.7
+        overlay.zPosition = 100
+        addChild(overlay)
+        
+        // Create modal background
+        let modalWidth: CGFloat = 400
+        let modalHeight: CGFloat = 300
+        let modal = SKShapeNode(rectOf: CGSize(width: modalWidth, height: modalHeight), cornerRadius: 20)
+        modal.fillColor = SKColor.darkGray
+        modal.strokeColor = SKColor.white
+        modal.lineWidth = 3
+        modal.position = CGPoint(x: size.width/2, y: size.height/2)
+        modal.zPosition = 101
+        addChild(modal)
+        
+        // Game Over title
+        let titleLabel = SKLabelNode(fontNamed: "Arial-BoldMT")
+        titleLabel.text = "GAME OVER"
+        titleLabel.fontSize = 32
+        titleLabel.fontColor = .red
+        titleLabel.position = CGPoint(x: 0, y: 60)
+        titleLabel.zPosition = 102
+        modal.addChild(titleLabel)
+        
+        // Final score
+        let scoreText = SKLabelNode(fontNamed: "Arial")
+        scoreText.text = "Final Score: \(score)"
+        scoreText.fontSize = 20
+        scoreText.fontColor = .white
+        scoreText.position = CGPoint(x: 0, y: 20)
+        scoreText.zPosition = 102
+        modal.addChild(scoreText)
+        
+        // Level reached
+        let levelText = SKLabelNode(fontNamed: "Arial")
+        levelText.text = "Level Reached: \(level)"
+        levelText.fontSize = 20
+        levelText.fontColor = .white
+        levelText.position = CGPoint(x: 0, y: -10)
+        levelText.zPosition = 102
+        modal.addChild(levelText)
+        
+        // Retry button
+        let retryButton = SKShapeNode(rectOf: CGSize(width: 120, height: 50), cornerRadius: 10)
+        retryButton.fillColor = SKColor.systemBlue
+        retryButton.strokeColor = SKColor.white
+        retryButton.lineWidth = 2
+        retryButton.position = CGPoint(x: 0, y: -70)
+        retryButton.zPosition = 102
+        retryButton.name = "retryButton"
+        modal.addChild(retryButton)
+        
+        let retryLabel = SKLabelNode(fontNamed: "Arial-BoldMT")
+        retryLabel.text = "RETRY"
+        retryLabel.fontSize = 18
+        retryLabel.fontColor = .white
+        retryLabel.position = CGPoint(x: 0, y: -6)
+        retryLabel.zPosition = 103
+        retryButton.addChild(retryLabel)
+        
+        // Animate modal appearance
+        modal.setScale(0)
+        let scaleAction = SKAction.scale(to: 1.0, duration: 0.3)
+        scaleAction.timingMode = .easeOut
+        modal.run(scaleAction)
+    }
+    
+    override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
+        guard isGameOver else { return }
+        
+        for touch in touches {
+            let location = touch.location(in: self)
+            let node = atPoint(location)
+            
+            if node.name == "retryButton" || node.parent?.name == "retryButton" {
+                restartGame()
+            }
+        }
+    }
+    
+    func restartGame() {
+        print("Restarting game...")
+        
+        // Reset game state
+        score = 0
+        level = 1
+        health = 3
+        isGameOver = false
+        isTransitioning = false
+        isMoving = false
+        currentDirection = .right
+        nextDirection = nil
+        collectedItems = 0
+        expiredItems = 0
+        
+        // Remove all children and start fresh
+        removeAllChildren()
+        
+        // Clear arrays
+        walls.removeAll()
+        items.removeAll()
+        pathTiles.removeAll()
+        itemGridPositions.removeAll()
+        
+        // Restart the game
+        didMove(to: view!)
+    }
+    
+    func clearInputState() {
+        nextDirection = nil
+        currentDirection = .right
+        print("Input state cleared")
+    }
 
     func findSafeStartingPosition() {
+        // Calculate maze offset to center it
+        let mazePixelWidth = CGFloat(mazeWidth) * gridSize
+        let mazePixelHeight = CGFloat(mazeHeight) * gridSize
+        let offsetX = (size.width - mazePixelWidth) / 2
+        let offsetY = (size.height - mazePixelHeight) / 2
+        
         for row in stride(from: currentMaze.count - 2, to: 0, by: -1) {
             for col in 1 ..< currentMaze[row].count {
                 if currentMaze[row][col] == 0 {
                     let pos = CGPoint(
-                        x: CGFloat(col) * gridSize + gridSize/2,
-                        y: CGFloat(currentMaze.count - row - 1) * gridSize + gridSize/2
+                        x: offsetX + CGFloat(col) * gridSize + gridSize/2,
+                        y: offsetY + CGFloat(currentMaze.count - row - 1) * gridSize + gridSize/2
                     )
-                    let safe = destinations.allSatisfy {
+                    let safe = items.allSatisfy { // Changed from destinations
                         hypot($0.position.x - pos.x, $0.position.y - pos.y) > gridSize * 3
                     }
                     if safe {
-                        player.removeFromParent()
+                        // Safely remove existing player if it exists
+                        player?.removeFromParent()
                         setupPlayer(position: pos)
-                        startPlayerMovement()
                         return
                     }
                 }
             }
         }
-        player.position = CGPoint(x: gridSize + gridSize/2, y: gridSize + gridSize/2)
+        // Fallback position - ensure it's within the maze bounds
+        let fallbackPos = CGPoint(x: offsetX + gridSize * 1.5, y: offsetY + gridSize * 1.5)
+        player?.removeFromParent()
+        setupPlayer(position: fallbackPos)
     }
 
     override func update(_ currentTime: TimeInterval) {
@@ -323,14 +753,18 @@ class GameScene: SKScene {
 extension GameScene: SKPhysicsContactDelegate {
     func didBegin(_ contact: SKPhysicsContact) {
         let (a, b) = (contact.bodyA, contact.bodyB)
-        if a.categoryBitMask == 1 && b.categoryBitMask == 4,
-           let index = destinations.firstIndex(where: { $0 == b.node })
-        {
-            reachDestination(at: index)
-        } else if b.categoryBitMask == 1 && a.categoryBitMask == 4,
-                  let index = destinations.firstIndex(where: { $0 == a.node })
-        {
-            reachDestination(at: index)
+        
+        // Check for player-item collision
+        if a.categoryBitMask == PlayerNode.category && b.categoryBitMask == ItemNode.categoryBitMask {
+            if let itemNode = b.node as? ItemNode,
+               let index = items.firstIndex(of: itemNode) {
+                collectItem(at: index)
+            }
+        } else if b.categoryBitMask == PlayerNode.category && a.categoryBitMask == ItemNode.categoryBitMask {
+            if let itemNode = a.node as? ItemNode,
+               let index = items.firstIndex(of: itemNode) {
+                collectItem(at: index)
+            }
         }
     }
 }

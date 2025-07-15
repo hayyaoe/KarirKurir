@@ -8,6 +8,8 @@ class PlayerNode: SKSpriteNode {
     private let moveDuration: TimeInterval = 0.18
     private var directionIndicator: SKSpriteNode!
     
+    static let category: UInt32 = 0x1 << 0
+
     init(tileSize: CGSize) {
         let playerSize = CGSize(width: tileSize.width * 0.8, height: tileSize.height * 0.8)
         super.init(texture: nil, color: .systemGreen, size: playerSize)
@@ -50,11 +52,13 @@ class PlayerNode: SKSpriteNode {
         physicsBody?.affectedByGravity = false
         physicsBody?.isDynamic = true
         physicsBody?.allowsRotation = false
-        physicsBody?.categoryBitMask = 1 // Player category
-        physicsBody?.collisionBitMask = 2 // Collide with walls
-        physicsBody?.contactTestBitMask = 2 | 4 // Test contact with walls and destination
         
-        print("Player physics setup: categoryBitMask = 1, contactTestBitMask = 6")
+        // Updated physics categories
+        physicsBody?.categoryBitMask = PlayerNode.category // Player category
+        physicsBody?.collisionBitMask = 2 // Collide with walls (category 2)
+        physicsBody?.contactTestBitMask = 2 | ItemNode.categoryBitMask // Test contact with walls and items
+        
+        print("Player physics setup: categoryBitMask = \(PlayerNode.category), contactTestBitMask = \(2 | ItemNode.categoryBitMask)")
     }
     
     func move(to targetPosition: CGPoint, completion: @escaping () -> Void) {
