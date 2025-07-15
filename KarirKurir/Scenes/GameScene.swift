@@ -16,6 +16,8 @@ class GameScene: SKScene {
     var currentMaze: [[Int]] = []
     var walls: [SKSpriteNode] = []
     var destinations: [SKSpriteNode] = []
+    var destinationGridPositions: [(row: Int, col: Int)] = []
+    var pathTiles: [SKSpriteNode] = []
 
     // Next Object
     var nextMaze: [[Int]] = []
@@ -113,8 +115,11 @@ class GameScene: SKScene {
     func setupMaze(maze: [[Int]]) {
         walls.forEach { $0.removeFromParent() }
         destinations.forEach { $0.removeFromParent() }
+        pathTiles.forEach { $0.removeFromParent() }
+
         walls.removeAll()
         destinations.removeAll()
+        pathTiles.removeAll()
 
         let wallColor = [UIColor.blue, .purple, .red, .green, .orange, .cyan][(level - 1) % 6]
 
@@ -124,8 +129,19 @@ class GameScene: SKScene {
                     x: CGFloat(col) * gridSize + gridSize/2,
                     y: CGFloat(maze.count - row - 1) * gridSize + gridSize/2
                 )
+
                 if cell == 1 {
-                    let wall = SKSpriteNode(color: wallColor, size: CGSize(width: gridSize, height: gridSize))
+                    let isOverDestination = destinationGridPositions.contains { $0.row == row + 1 && $0.col == col }
+
+                    let textureName: String
+                    if isOverDestination {
+                        textureName = "" // e.g., house_1.png, house_2.png, ..., house_7.png
+                    } else {
+                        textureName = randomWallAsset()
+                    }
+
+                    let wallTexture = SKTexture(imageNamed: textureName)
+                    let wall = SKSpriteNode(texture: wallTexture, size: CGSize(width: gridSize, height: gridSize))
                     wall.position = position
                     wall.physicsBody = SKPhysicsBody(rectangleOf: wall.size)
                     wall.physicsBody?.categoryBitMask = 2
@@ -135,6 +151,7 @@ class GameScene: SKScene {
                 }
             }
         }
+        setupPathTiles(maze: maze)
 
         let reachablePositions = findReachablePositions(from: player.position, gridSize: gridSize, maze: maze)
         setupDestinations(fromReachable: reachablePositions)
@@ -143,9 +160,14 @@ class GameScene: SKScene {
     }
 
     func setupDestinations(fromReachable positions: [CGPoint], count: Int = 3) {
+        destinationGridPositions.removeAll()
         let selectedPositions = generatePoissonDiskPoints(from: positions, minDistance: gridSize * 4, maxPoints: count)
 
         for (index, pos) in selectedPositions.enumerated() {
+            let row = Int((size.height - pos.y)/gridSize)
+            let col = Int(pos.x/gridSize)
+            destinationGridPositions.append((row: row, col: col))
+
             let color = UIColor(hue: CGFloat(index)/CGFloat(count), saturation: 1, brightness: 1, alpha: 1)
             let dest = SKSpriteNode(color: color, size: CGSize(width: 20, height: 20))
             dest.position = pos
@@ -160,6 +182,25 @@ class GameScene: SKScene {
             ])))
             addChild(dest)
             destinations.append(dest)
+        }
+    }
+
+    func setupPathTiles(maze: [[Int]]) {
+        for row in 1 ..< maze.count - 1 {
+            for col in 1 ..< maze[row].count - 1 {
+                if let tileType = detectPathTileType(row: row, col: col, in: maze) {
+                    let spriteName = spriteNameFor(tileType: tileType)
+                    let tileTexture = SKTexture(imageNamed: spriteName)
+                    let tileNode = SKSpriteNode(texture: tileTexture, size: CGSize(width: gridSize, height: gridSize))
+                    tileNode.position = CGPoint(
+                        x: CGFloat(col) * gridSize + gridSize/2,
+                        y: CGFloat(maze.count - row - 1) * gridSize + gridSize/2
+                    )
+                    tileNode.zPosition = -1
+                    addChild(tileNode)
+                    pathTiles.append(tileNode) // ✅ Tambahkan ini
+                }
+            }
         }
     }
 

@@ -151,3 +151,72 @@ func addRandomWalls(_ maze: inout [[Int]], width: Int, height: Int, count: Int) 
         }
     }
 }
+
+func detectPathTileType(row: Int, col: Int, in maze: [[Int]]) -> PathTileType? {
+    guard maze[row][col] == 0 else { return nil }
+
+    let up = maze[row - 1][col] == 0
+    let down = maze[row + 1][col] == 0
+    let left = maze[row][col - 1] == 0
+    let right = maze[row][col + 1] == 0
+
+    let connections = [up, down, left, right].filter { $0 }.count
+
+    switch connections {
+    case 4:
+        return .cross
+    case 3:
+        if !up { return .tDown }
+        if !down { return .tUp }
+        if !left { return .tRight }
+        return .tLeft
+    case 2:
+        if up, down { return .vertical }
+        if left, right { return .horizontal }
+        if up, right { return .cornerBottomLeft }
+        if up, left { return .cornerBottomRight }
+        if down, right { return .cornerTopLeft }
+        if down, left { return .cornerTopRight }
+    case 1:
+        if up { return .endUp }
+        if down { return .endDown }
+        if left { return .endLeft }
+        if right { return .endRight }
+    default:
+        return nil
+    }
+
+    return nil
+}
+
+func spriteNameFor(tileType: PathTileType) -> String {
+    switch tileType {
+    case .vertical: return "pathVertical"
+    case .horizontal: return "pathHorizontal"
+    case .cornerTopLeft: return "pathRightDown"
+    case .cornerTopRight: return "pathLeftDown"
+    case .cornerBottomLeft: return "pathRightUp"
+    case .cornerBottomRight: return "pathLeftUp"
+    case .tUp: return "pathHorizontalUp"
+    case .tDown: return "pathHorizontalDown"
+    case .tLeft: return "pathVerticalLeft"
+    case .tRight: return "pathVerticalRight"
+    case .cross: return "pathAllDirections"
+    case .endUp: return "pathEndUp"
+    case .endDown: return "pathEndDown"
+    case .endLeft: return "pathEndLeft"
+    case .endRight: return "pathEndRight"
+    }
+}
+
+func randomWallAsset() -> String {
+    let options = [
+        "pathTree",
+        "pathGrass",
+//        "warung1",
+//        "warung2",
+//        "warung3",
+//        "house\(Int.random(in: 1 ... 5))"
+    ]
+    return options.randomElement()!
+}
