@@ -12,10 +12,19 @@ enum FacingDirection: String {
 class PlayerNode: SKSpriteNode {
     private let moveDuration: TimeInterval = 0.18
     private var directionIndicator: SKSpriteNode!
+    
+    static let category: UInt32 = 0x1 << 0
 
-    enum FacingDirection {
-        case up, down, left, right
-    }
+//    init(tileSize: CGSize) {
+//        let playerSize = CGSize(width: tileSize.width * 0.8, height: tileSize.height * 0.8)
+//        super.init(texture: nil, color: .systemGreen, size: playerSize)
+//        
+//        setupVisualElements()
+//        setupPhysics(size: playerSize)
+//
+//    enum FacingDirection {
+//        case up, down, left, right
+//    }
 
     private var facing: FacingDirection = .right
     private var animationFrames: [FacingDirection: [SKTexture]] = [:]
@@ -54,13 +63,37 @@ class PlayerNode: SKSpriteNode {
     }
 
     func move(to targetPosition: CGPoint, completion: @escaping () -> Void) {
+        moveWithCustomDuration(to: targetPosition, duration: moveDuration, completion: completion)
+    }
+    
+    func moveWithCustomDuration(to targetPosition: CGPoint, duration: TimeInterval, completion: @escaping () -> Void) {
+        // Remove any existing actions first
+        removeAllActions()
+        
+        // Update direction indicator
+//        updateDirectionIndicator(to: targetPosition)
+        
+        // Create smooth movement with better easing
+        let moveAction = SKAction.move(to: targetPosition, duration: duration)
+        moveAction.timingMode = .easeInEaseOut
+        
+        // Add a slight scale effect for juice
+        let scaleUp = SKAction.scale(to: 1.1, duration: duration/2)
+        let scaleDown = SKAction.scale(to: 1.0, duration: duration/2)
+        let scaleSequence = SKAction.sequence([scaleUp, scaleDown])
+        
+        let doneAction = SKAction.run(completion)
+        let moveSequence = SKAction.sequence([moveAction, doneAction])
+        
+        // Run both actions in parallel
+        run(SKAction.group([moveSequence, scaleSequence]))
         removeAllActions()
 
         updateDirection(to: targetPosition)
         animateWalk()
 
-        let moveAction = SKAction.move(to: targetPosition, duration: moveDuration)
-        moveAction.timingMode = .easeInEaseOut
+//        let moveAction = SKAction.move(to: targetPosition, duration: moveDuration)
+//        moveAction.timingMode = .easeInEaseOut
 
         let done = SKAction.run {
             completion()

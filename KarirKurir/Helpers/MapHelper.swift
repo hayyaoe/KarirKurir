@@ -220,3 +220,10 @@ func randomWallAsset() -> String {
     ]
     return options.randomElement()!
 }
+
+func randomHouseAsset() -> String {
+    let options = [
+        "house\(Int.random(in: 1 ... 10))"
+    ]
+    return options.randomElement()!
+}

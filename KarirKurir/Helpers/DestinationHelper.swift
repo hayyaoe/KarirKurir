@@ -17,8 +17,15 @@ func findReachablePositions(from start: CGPoint, gridSize: CGFloat, maze: [[Int]
     var result: [CGPoint] = []
     var queue: [(Int, Int)] = []
 
-    let col = Int(start.x/gridSize)
-    let row = height - 1 - Int(start.y/gridSize)
+    // Convert start position to maze grid coordinates
+    let col = Int(start.x)
+    let row = Int(start.y)
+    
+    // Add bounds checking to prevent crash
+    guard row >= 0, row < height, col >= 0, col < width else {
+        print("Start position is out of maze bounds: row=\(row), col=\(col), maze size=\(height)x\(width)")
+        return []
+    }
 
     queue.append((row, col))
     visited[row][col] = true
@@ -28,8 +35,8 @@ func findReachablePositions(from start: CGPoint, gridSize: CGFloat, maze: [[Int]
         let (r, c) = queue.removeFirst()
         if maze[r][c] == 0 {
             result.append(CGPoint(
-                x: CGFloat(c) * gridSize + gridSize/2,
-                y: CGFloat(height - r - 1) * gridSize + gridSize/2
+                x: CGFloat(c) + 0.5,
+                y: CGFloat(height - r - 1) + 0.5
             ))
         }
 

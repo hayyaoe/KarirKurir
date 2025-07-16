@@ -19,7 +19,7 @@ class GameViewController: UIViewController {
             // Wait for the view to have its final size
             DispatchQueue.main.async {
                 let scene = GameScene(size: view.bounds.size)
-                scene.scaleMode = .aspectFill
+                scene.scaleMode = .aspectFit
                 view.presentScene(scene)
                 
                 view.ignoresSiblingOrder = true
@@ -33,7 +33,7 @@ class GameViewController: UIViewController {
     }
 
     override var supportedInterfaceOrientations: UIInterfaceOrientationMask {
-        return .portrait
+        return .landscape
     }
 
     override var prefersStatusBarHidden: Bool {
