@@ -2,7 +2,12 @@
 //  PlayerNode.swift
 //  KarirKurir
 //
+
 import SpriteKit
+
+enum FacingDirection: String {
+    case up, down, left, right
+}
 
 class PlayerNode: SKSpriteNode {
     private let moveDuration: TimeInterval = 0.18
@@ -16,51 +21,47 @@ class PlayerNode: SKSpriteNode {
         
         setupVisualElements()
         setupPhysics(playerSize: playerSize)
+
+    enum FacingDirection {
+        case up, down, left, right
     }
-    
+
+    private var facing: FacingDirection = .right
+    private var animationFrames: [FacingDirection: [SKTexture]] = [:]
+
+    init(tileSize: CGSize) {
+        // Load textures once for default
+        let defaultTexture = SKTexture(imageNamed: "courierRight1")
+        let playerSize = CGSize(width: tileSize.width, height: tileSize.height)
+
+        super.init(texture: defaultTexture, color: .clear, size: playerSize)
+
+        setupTextures()
+        setupPhysics(size: playerSize)
+    }
+
     @available(*, unavailable)
     required init?(coder aDecoder: NSCoder) {
         fatalError("init(coder:) has not been implemented")
     }
-    
-    private func setupVisualElements() {
-        // Add rounded corners effect
-        let cornerRadius: CGFloat = 8
-        let roundedRect = SKShapeNode(rectOf: size, cornerRadius: cornerRadius)
-        roundedRect.fillColor = .systemGreen
-        roundedRect.strokeColor = .white
-        roundedRect.lineWidth = 2
-        addChild(roundedRect)
-        
-        // Add direction indicator (small arrow)
-        directionIndicator = SKSpriteNode(color: .white, size: CGSize(width: 8, height: 12))
-        directionIndicator.position = CGPoint(x: size.width/4, y: 0)
-        addChild(directionIndicator)
-        
-        // Add a subtle glow effect
-        let glowNode = SKShapeNode(rectOf: CGSize(width: size.width + 4, height: size.height + 4), cornerRadius: 10)
-        glowNode.fillColor = .clear
-        glowNode.strokeColor = .systemGreen
-        glowNode.lineWidth = 1
-        glowNode.alpha = 0.3
-        glowNode.zPosition = -1
-        addChild(glowNode)
+
+    private func setupTextures() {
+        animationFrames[.down] = (1...4).map { SKTexture(imageNamed: "courierDown\($0)") }
+        animationFrames[.up] = (1...4).map { SKTexture(imageNamed: "courierUp\($0)") }
+        animationFrames[.left] = (1...4).map { SKTexture(imageNamed: "courierLeft\($0)") }
+        animationFrames[.right] = (1...4).map { SKTexture(imageNamed: "courierRight\($0)") }
     }
-    
-    private func setupPhysics(playerSize: CGSize) {
-        physicsBody = SKPhysicsBody(rectangleOf: playerSize)
+
+    private func setupPhysics(size: CGSize) {
+        physicsBody = SKPhysicsBody(rectangleOf: CGSize(width: 30, height: 30))
         physicsBody?.affectedByGravity = false
         physicsBody?.isDynamic = true
         physicsBody?.allowsRotation = false
-        
-        // Updated physics categories
-        physicsBody?.categoryBitMask = PlayerNode.category // Player category
-        physicsBody?.collisionBitMask = 2 // Collide with walls (category 2)
-        physicsBody?.contactTestBitMask = 2 | ItemNode.categoryBitMask // Test contact with walls and items
-        
-        print("Player physics setup: categoryBitMask = \(PlayerNode.category), contactTestBitMask = \(2 | ItemNode.categoryBitMask)")
+        physicsBody?.categoryBitMask = 1 // Player
+        physicsBody?.collisionBitMask = 2 // Walls
+        physicsBody?.contactTestBitMask = 2 | 4 // Walls + Destination
     }
-    
+
     func move(to targetPosition: CGPoint, completion: @escaping () -> Void) {
         moveWithCustomDuration(to: targetPosition, duration: moveDuration, completion: completion)
     }
@@ -86,35 +87,37 @@ class PlayerNode: SKSpriteNode {
         
         // Run both actions in parallel
         run(SKAction.group([moveSequence, scaleSequence]))
+        removeAllActions()
+
+        updateDirection(to: targetPosition)
+        animateWalk()
+
+        let moveAction = SKAction.move(to: targetPosition, duration: moveDuration)
+        moveAction.timingMode = .easeInEaseOut
+
+        let done = SKAction.run {
+            completion()
+        }
+
+        run(SKAction.sequence([moveAction, done]))
     }
-    
-    private func updateDirectionIndicator(to targetPosition: CGPoint) {
-        let currentPos = position
-        let deltaX = targetPosition.x - currentPos.x
-        let deltaY = targetPosition.y - currentPos.y
-        
-        // Calculate angle for direction indicator
-        let angle = atan2(deltaY, deltaX)
-        
-        // Rotate direction indicator
-        let rotateAction = SKAction.rotate(toAngle: angle, duration: 0.1)
-        directionIndicator.run(rotateAction)
-        
-        // Position indicator based on direction
-        let indicatorDistance: CGFloat = size.width/3
-        let indicatorX = cos(angle) * indicatorDistance
-        let indicatorY = sin(angle) * indicatorDistance
-        
-        let moveIndicator = SKAction.move(to: CGPoint(x: indicatorX, y: indicatorY), duration: 0.1)
-        directionIndicator.run(moveIndicator)
+
+    private func updateDirection(to target: CGPoint) {
+        let dx = target.x - position.x
+        let dy = target.y - position.y
+
+        if abs(dx) > abs(dy) {
+            facing = dx > 0 ? .right : .left
+        } else {
+            facing = dy > 0 ? .up : .down
+        }
     }
-    
-    func showDirectionChange() {
-        // Brief flash effect when direction changes
-        let flash = SKAction.sequence([
-            SKAction.fadeAlpha(to: 0.7, duration: 0.1),
-            SKAction.fadeAlpha(to: 1.0, duration: 0.1)
-        ])
-        run(flash)
+
+    private func animateWalk() {
+        guard let frames = animationFrames[facing] else { return }
+
+        let animation = SKAction.animate(with: frames, timePerFrame: moveDuration / Double(frames.count))
+        let repeatAction = SKAction.repeatForever(animation)
+        run(repeatAction, withKey: "walkAnimation")
     }
 }
