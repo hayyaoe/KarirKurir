@@ -260,6 +260,7 @@ class GameScene: SKScene {
                         wall.color = .clear
                         // Try to remove black backgrounds by setting blend mode
                         wall.blendMode = .alpha
+                        
                     }
                     
                     wall.physicsBody = SKPhysicsBody(rectangleOf: wall.size)

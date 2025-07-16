@@ -223,7 +223,7 @@ func randomWallAsset() -> String {
 
 func randomHouseAsset() -> String {
     let options = [
-        "house\(Int.random(in: 1 ... 5))"
+        "house\(Int.random(in: 1 ... 10))"
     ]
     return options.randomElement()!
 }
