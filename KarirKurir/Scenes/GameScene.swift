@@ -159,7 +159,7 @@ class GameScene: SKScene {
         // Remove existing player if it exists
         player?.removeFromParent()
         
-        player = PlayerNode(tileSize: CGSize(width: gridSize, height: gridSize))
+        player = PlayerNode(tileSize: CGSize(width: gridSize * 1.5, height: gridSize * 1.5))
         player.position = position
         addChild(player)
         

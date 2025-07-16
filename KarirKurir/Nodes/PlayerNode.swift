@@ -15,16 +15,16 @@ class PlayerNode: SKSpriteNode {
     
     static let category: UInt32 = 0x1 << 0
 
-    init(tileSize: CGSize) {
-        let playerSize = CGSize(width: tileSize.width * 0.8, height: tileSize.height * 0.8)
-        super.init(texture: nil, color: .systemGreen, size: playerSize)
-        
-        setupVisualElements()
-        setupPhysics(playerSize: playerSize)
-
-    enum FacingDirection {
-        case up, down, left, right
-    }
+//    init(tileSize: CGSize) {
+//        let playerSize = CGSize(width: tileSize.width * 0.8, height: tileSize.height * 0.8)
+//        super.init(texture: nil, color: .systemGreen, size: playerSize)
+//        
+//        setupVisualElements()
+//        setupPhysics(size: playerSize)
+//
+//    enum FacingDirection {
+//        case up, down, left, right
+//    }
 
     private var facing: FacingDirection = .right
     private var animationFrames: [FacingDirection: [SKTexture]] = [:]
@@ -71,7 +71,7 @@ class PlayerNode: SKSpriteNode {
         removeAllActions()
         
         // Update direction indicator
-        updateDirectionIndicator(to: targetPosition)
+//        updateDirectionIndicator(to: targetPosition)
         
         // Create smooth movement with better easing
         let moveAction = SKAction.move(to: targetPosition, duration: duration)
@@ -92,8 +92,8 @@ class PlayerNode: SKSpriteNode {
         updateDirection(to: targetPosition)
         animateWalk()
 
-        let moveAction = SKAction.move(to: targetPosition, duration: moveDuration)
-        moveAction.timingMode = .easeInEaseOut
+//        let moveAction = SKAction.move(to: targetPosition, duration: moveDuration)
+//        moveAction.timingMode = .easeInEaseOut
 
         let done = SKAction.run {
             completion()
