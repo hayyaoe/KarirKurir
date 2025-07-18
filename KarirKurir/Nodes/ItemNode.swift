@@ -53,18 +53,18 @@ class ItemNode: SKSpriteNode {
     private func setupChatBubbleTimer() {
         // Create chat bubble using the provided image
         let bubbleTexture = SKTexture(imageNamed: "package") // Use your chat bubble image name
-        chatBubble = SKSpriteNode(texture: bubbleTexture, size: CGSize(width: size.width * 2.6, height: size.height * 2.3))
+        chatBubble = SKSpriteNode(texture: bubbleTexture, size: CGSize(width: size.width * 2.7, height: size.height * 2.7))
         chatBubble.position = CGPoint(x: 0, y: size.height * 0.8) // Position above the item
         chatBubble.zPosition = 1
         addChild(chatBubble)
         
         // Create progress bar background inside the bubble
-        let barWidth: CGFloat = chatBubble.size.width * 0.7
-        let barHeight: CGFloat = 8
+        let barWidth: CGFloat = chatBubble.size.width * 0.7 * 0.9
+        let barHeight: CGFloat = 8 * 0.9
         progressBarBackground = SKShapeNode(rectOf: CGSize(width: barWidth, height: barHeight), cornerRadius: 4)
         progressBarBackground.fillColor = .darkGray
         progressBarBackground.strokeColor = .clear
-        progressBarBackground.position = CGPoint(x: 0, y: -2) // Slightly below center of bubble
+        progressBarBackground.position = CGPoint(x: 0, y: -7) // Slightly below center of bubble
         chatBubble.addChild(progressBarBackground)
         
         // Create progress bar fill

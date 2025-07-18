@@ -12,12 +12,13 @@ class InputController {
     private var panGesture: UIPanGestureRecognizer!
     private var tapGesture: UITapGestureRecognizer!
     private var currentDirection: MoveDirection?
-    private let minimumDistance: CGFloat = 15.0
-    private let minimumVelocity: CGFloat = 80.0
+    private let minimumDistance: CGFloat = 12.0 // Reduced for more responsive controls
+    private let minimumVelocity: CGFloat = 60.0 // Reduced for more responsive controls
     private var lastNotifiedDirection: MoveDirection?
     private var initialTouchPoint: CGPoint = .zero
     private var lastTranslation: CGPoint = .zero
-    private var directionLockThreshold: CGFloat = 30.0
+    private var directionLockThreshold: CGFloat = 25.0 // Reduced for smoother turns
+    private var isFirstSwipe: Bool = true
     
     init(view: SKView) {
         setupGestures(view: view)
@@ -29,11 +30,15 @@ class InputController {
         panGesture.minimumNumberOfTouches = 1
         panGesture.maximumNumberOfTouches = 1
         panGesture.cancelsTouchesInView = false
+        panGesture.delaysTouchesBegan = false // Make it more responsive
+        panGesture.delaysTouchesEnded = false
         view.addGestureRecognizer(panGesture)
         
         // Tap gesture for quick direction changes
         tapGesture = UITapGestureRecognizer(target: self, action: #selector(handleTap(sender:)))
         tapGesture.numberOfTapsRequired = 1
+        tapGesture.delaysTouchesBegan = false
+        tapGesture.delaysTouchesEnded = false
         tapGesture.require(toFail: panGesture)
         view.addGestureRecognizer(tapGesture)
     }
@@ -80,6 +85,9 @@ class InputController {
                 // Reset translation reference after direction change
                 sender.setTranslation(.zero, in: sender.view)
                 lastTranslation = .zero
+                
+                // Mark that first swipe has happened
+                isFirstSwipe = false
             } else {
                 lastTranslation = currentTranslation
             }
@@ -99,6 +107,10 @@ class InputController {
         let absTransX = abs(translation.x)
         let absTransY = abs(translation.y)
         
+        // Check if movement is significant enough - more lenient for first swipe
+        let velocityThreshold = isFirstSwipe ? minimumVelocity * 0.7 : minimumVelocity
+        let translationThreshold = isFirstSwipe ? minimumDistance * 0.8 : minimumDistance
+                
         // Check if movement is significant enough
         let hasSignificantVelocity = max(absVelX, absVelY) > minimumVelocity
         let hasSignificantTranslation = max(absTransX, absTransY) > minimumDistance
@@ -172,16 +184,25 @@ class InputController {
         return (horizontalDirections.contains(direction1) && verticalDirections.contains(direction2)) ||
                (verticalDirections.contains(direction1) && horizontalDirections.contains(direction2))
     }
-}
-
-// Extension to make MoveDirection printable for debugging
-extension MoveDirection {
-    var description: String {
-        switch self {
-        case .up: return "up"
-        case .down: return "down"
-        case .left: return "left"
-        case .right: return "right"
-        }
+    
+    // Reset for game restart
+    func reset() {
+        lastNotifiedDirection = nil
+        currentDirection = nil
+        isFirstSwipe = true
+        print("InputController reset")
     }
 }
+
+//// Extension to make MoveDirection printable for debugging
+//extension MoveDirection {
+//    var description: String {
+//        switch self {
+//        case .up: return "up"
+//        case .down: return "down"
+//        case .left: return "left"
+//        case .right: return "right"
+//        }
+//    }
+//}
+

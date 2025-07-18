@@ -216,7 +216,7 @@ func randomWallAsset() -> String {
 //        "warung1",
 //        "warung2",
 //        "warung3",
-//        "house\(Int.random(in: 1 ... 5))"
+//        "house\(Int.random(in: 1 ... 3))"
     ]
     return options.randomElement()!
 }
