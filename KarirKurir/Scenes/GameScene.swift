@@ -51,6 +51,7 @@ class GameScene: SKScene {
     var gridSize: CGFloat = 30.0 // This will be calculated dynamically
 
     // MARK: - Maze dimensions
+
     let mazeWidth: Int = 20
     let mazeHeight: Int = 11
 
@@ -94,8 +95,8 @@ class GameScene: SKScene {
     func setupInitialPlayerPosition() {
         let mazePixelWidth = CGFloat(mazeWidth) * gridSize
         let mazePixelHeight = CGFloat(mazeHeight) * gridSize
-        let offsetX = (size.width - mazePixelWidth) / 2
-        let offsetY = (size.height - mazePixelHeight) / 2
+        let offsetX = (size.width - mazePixelWidth)/2
+        let offsetY = (size.height - mazePixelHeight)/2
         
         // Ensure maze is not empty
         guard !currentMaze.isEmpty, !currentMaze[0].isEmpty else {
@@ -109,8 +110,9 @@ class GameScene: SKScene {
         for row in stride(from: currentMaze.count - 2, to: 0, by: -1) {
             for col in 1 ..< min(5, currentMaze[row].count) { // Check only first few columns
                 if row >= 0 && row < currentMaze.count &&
-                   col >= 0 && col < currentMaze[row].count &&
-                   currentMaze[row][col] == 0 {
+                    col >= 0 && col < currentMaze[row].count &&
+                    currentMaze[row][col] == 0
+                {
                     let pos = CGPoint(
                         x: offsetX + CGFloat(col) * gridSize + gridSize/2,
                         y: offsetY + CGFloat(currentMaze.count - row - 1) * gridSize + gridSize/2
@@ -139,8 +141,8 @@ class GameScene: SKScene {
         let availableWidth = sceneWidth * 0.90 // Leave 10% margin
         let availableHeight = sceneHeight * 0.80 // Leave 20% margin for UI
         
-        let gridSizeByWidth = availableWidth / CGFloat(mazeWidth)
-        let gridSizeByHeight = availableHeight / CGFloat(mazeHeight)
+        let gridSizeByWidth = availableWidth/CGFloat(mazeWidth)
+        let gridSizeByHeight = availableHeight/CGFloat(mazeHeight)
         
         // Use the smaller value to ensure the maze fits on screen
         gridSize = min(gridSizeByWidth, gridSizeByHeight)
@@ -227,8 +229,8 @@ class GameScene: SKScene {
         // Center the maze on screen
         let mazePixelWidth = CGFloat(mazeWidth) * gridSize
         let mazePixelHeight = CGFloat(mazeHeight) * gridSize
-        let offsetX = (size.width - mazePixelWidth) / 2
-        let offsetY = (size.height - mazePixelHeight) / 2
+        let offsetX = (size.width - mazePixelWidth)/2
+        let offsetY = (size.height - mazePixelHeight)/2
 
         // First, determine item positions on walls
         setupItemsOnWalls(maze: maze, offsetX: offsetX, offsetY: offsetY)
@@ -260,7 +262,6 @@ class GameScene: SKScene {
                         wall.color = .clear
                         // Try to remove black backgrounds by setting blend mode
                         wall.blendMode = .alpha
-                        
                     }
                     
                     wall.physicsBody = SKPhysicsBody(rectangleOf: wall.size)
@@ -285,22 +286,23 @@ class GameScene: SKScene {
         // Find all wall positions that are accessible (adjacent to paths)
         var accessibleWallPositions: [CGPoint] = []
         
-        for row in 1..<maze.count - 1 {
-            for col in 1..<maze[row].count - 1 {
+        for row in 1 ..< maze.count - 1 {
+            for col in 1 ..< maze[row].count - 1 {
                 if maze[row][col] == 1 { // This is a wall
                     // Check if this wall is adjacent to at least one path
                     let adjacentPositions = [
                         (row - 1, col), // up
                         (row + 1, col), // down
                         (row, col - 1), // left
-                        (row, col + 1)  // right
+                        (row, col + 1) // right
                     ]
                     
                     var hasAdjacentPath = false
                     for (adjRow, adjCol) in adjacentPositions {
                         if adjRow >= 0 && adjRow < maze.count &&
-                           adjCol >= 0 && adjCol < maze[adjRow].count &&
-                           maze[adjRow][adjCol] == 0 { // Adjacent cell is a path
+                            adjCol >= 0 && adjCol < maze[adjRow].count &&
+                            maze[adjRow][adjCol] == 0
+                        { // Adjacent cell is a path
                             hasAdjacentPath = true
                             break
                         }
@@ -451,8 +453,8 @@ class GameScene: SKScene {
         // Calculate maze bounds
         let mazePixelWidth = CGFloat(mazeWidth) * gridSize
         let mazePixelHeight = CGFloat(mazeHeight) * gridSize
-        let offsetX = (size.width - mazePixelWidth) / 2
-        let offsetY = (size.height - mazePixelHeight) / 2
+        let offsetX = (size.width - mazePixelWidth)/2
+        let offsetY = (size.height - mazePixelHeight)/2
         
         let mazeMinX = offsetX
         let mazeMaxX = offsetX + mazePixelWidth
@@ -495,20 +497,20 @@ class GameScene: SKScene {
         // Calculate maze offset for proper grid positioning
         let mazePixelWidth = CGFloat(mazeWidth) * gridSize
         let mazePixelHeight = CGFloat(mazeHeight) * gridSize
-        let offsetX = (size.width - mazePixelWidth) / 2
-        let offsetY = (size.height - mazePixelHeight) / 2
+        let offsetX = (size.width - mazePixelWidth)/2
+        let offsetY = (size.height - mazePixelHeight)/2
         
         // Convert player position to grid coordinates
-        let playerGridX = Int((player.position.x - offsetX) / gridSize)
-        let playerGridY = Int((player.position.y - offsetY) / gridSize)
+        let playerGridX = Int((player.position.x - offsetX)/gridSize)
+        let playerGridY = Int((player.position.y - offsetY)/gridSize)
         
         // Collect from ALL adjacent items automatically
         var itemsToCollect: [Int] = []
         
         for (index, item) in items.enumerated() {
             // Convert item position to grid coordinates
-            let itemGridX = Int((item.position.x - offsetX) / gridSize)
-            let itemGridY = Int((item.position.y - offsetY) / gridSize)
+            let itemGridX = Int((item.position.x - offsetX)/gridSize)
+            let itemGridY = Int((item.position.y - offsetY)/gridSize)
             
             // Check if player is EXACTLY adjacent to the item (no diagonals, direct neighbors only)
             let deltaX = playerGridX - itemGridX
@@ -530,18 +532,18 @@ class GameScene: SKScene {
 
 //    func collectItem(at index: Int) {
 //        guard index < items.count, !isTransitioning, !isGameOver, !isCollecting else { return }
-//        
+//
 //        // Start collecting process - this stops player movement
 //        isCollecting = true
 //        stopPlayerMovement()
-//        
+//
 //        let item = items[index]
-//        
+//
 //        // Calculate score based on item category
 //        let points = item.category.points * 10 * level
 //        score += points
 //        scoreLabel.text = "Score: \(score)"
-//        
+//
 //        // Show collection feedback
 //        let label = SKLabelNode(fontNamed: "Arial-BoldMT")
 //        label.text = "+\(points)"
@@ -549,7 +551,7 @@ class GameScene: SKScene {
 //        label.fontColor = item.category.color
 //        label.position = CGPoint(x: item.position.x, y: item.position.y + 30)
 //        addChild(label)
-//        
+//
 //        // Add collection effect
 //        let collectEffect = SKShapeNode(circleOfRadius: gridSize * 0.5)
 //        collectEffect.strokeColor = item.category.color
@@ -558,7 +560,7 @@ class GameScene: SKScene {
 //        collectEffect.position = item.position
 //        collectEffect.zPosition = 20
 //        addChild(collectEffect)
-//        
+//
 //        // Player collection animation - make player "glow" during collection
 //        let playerGlow = SKShapeNode(rectOf: CGSize(width: gridSize + 4, height: gridSize + 4), cornerRadius: 12)
 //        playerGlow.fillColor = .clear
@@ -567,14 +569,14 @@ class GameScene: SKScene {
 //        playerGlow.position = player.position
 //        playerGlow.zPosition = player.zPosition + 1
 //        addChild(playerGlow)
-//        
+//
 //        // Animate collection effect
 //        let expandAction = SKAction.scale(to: 2.0, duration: 0.3)
 //        let fadeAction = SKAction.fadeOut(withDuration: 0.3)
 //        let removeEffect = SKAction.removeFromParent()
 //        let effectSequence = SKAction.sequence([SKAction.group([expandAction, fadeAction]), removeEffect])
 //        collectEffect.run(effectSequence)
-//        
+//
 //        // Animate player glow
 //        let glowPulse = SKAction.sequence([
 //            SKAction.scale(to: 1.1, duration: 0.1),
@@ -585,21 +587,21 @@ class GameScene: SKScene {
 //        let removeGlow = SKAction.removeFromParent()
 //        let glowSequence = SKAction.sequence([repeatPulse, fadeGlow, removeGlow])
 //        playerGlow.run(glowSequence)
-//        
+//
 //        // Animate the score label
 //        let moveUp = SKAction.moveBy(x: 0, y: 30, duration: 0.8)
 //        let fadeOut = SKAction.fadeOut(withDuration: 0.8)
 //        let remove = SKAction.removeFromParent()
 //        let sequence = SKAction.sequence([SKAction.group([moveUp, fadeOut]), remove])
 //        label.run(sequence)
-//        
+//
 //        // Remove the item and track collection
 //        item.removeFromParent()
 //        items.remove(at: index)
 //        collectedItems += 1
-//        
+//
 //        print("Collected item from house, \(items.count) items remaining, \(collectedItems) collected")
-//        
+//
 //        // Wait 0.5 seconds before allowing movement again
 //        run(SKAction.sequence([
 //            SKAction.wait(forDuration: 0.5),
@@ -608,7 +610,7 @@ class GameScene: SKScene {
 //                // Only restart movement if we're not transitioning or game over
 //                if let self = self, !self.isTransitioning && !self.isGameOver {
 //                    self.startPlayerMovement()
-//                    
+//
 //                    // Check if all items are collected
 //                    if self.items.isEmpty {
 //                        self.checkLevelCompletion()
@@ -629,7 +631,8 @@ class GameScene: SKScene {
         
         level += 1
         levelLabel.text = "Level: \(level)"
-
+        GameCenterManager.shared.completeLevel(level)
+        
         // Show level complete message
         let label = SKLabelNode(fontNamed: "Arial-BoldMT")
         label.text = "Level Complete!"
@@ -838,8 +841,8 @@ class GameScene: SKScene {
         // Find all path positions that are safe for holes (not too close to player start or items)
         var availablePathPositions: [CGPoint] = []
         
-        for row in 2..<maze.count - 2 {
-            for col in 2..<maze[row].count - 2 {
+        for row in 2 ..< maze.count - 2 {
+            for col in 2 ..< maze[row].count - 2 {
                 if maze[row][col] == 0 { // This is a path
                     // Check if this position is far enough from player starting area (bottom-left)
                     let isNearStart = row >= maze.count - 4 && col <= 4
@@ -1009,7 +1012,7 @@ class GameScene: SKScene {
             SKAction.run { [weak self] in
                 self?.isCollecting = false
                 // Only restart movement if we're not transitioning or game over
-                if let self = self, !self.isTransitioning && !self.isGameOver {
+                if let self = self, !self.isTransitioning, !self.isGameOver {
                     self.startPlayerMovement()
                     
                     // Check if all items are collected
@@ -1033,8 +1036,8 @@ class GameScene: SKScene {
         // Calculate maze offset to center it
         let mazePixelWidth = CGFloat(mazeWidth) * gridSize
         let mazePixelHeight = CGFloat(mazeHeight) * gridSize
-        let offsetX = (size.width - mazePixelWidth) / 2
-        let offsetY = (size.height - mazePixelHeight) / 2
+        let offsetX = (size.width - mazePixelWidth)/2
+        let offsetY = (size.height - mazePixelHeight)/2
         
         for row in stride(from: currentMaze.count - 2, to: 0, by: -1) {
             for col in 1 ..< currentMaze[row].count {
@@ -1075,12 +1078,14 @@ extension GameScene: SKPhysicsContactDelegate {
         // Check for player-item collision
         if a.categoryBitMask == PlayerNode.category && b.categoryBitMask == ItemNode.categoryBitMask {
             if let itemNode = b.node as? ItemNode,
-               let index = items.firstIndex(of: itemNode) {
+               let index = items.firstIndex(of: itemNode)
+            {
                 collectItem(at: index)
             }
         } else if b.categoryBitMask == PlayerNode.category && a.categoryBitMask == ItemNode.categoryBitMask {
             if let itemNode = a.node as? ItemNode,
-               let index = items.firstIndex(of: itemNode) {
+               let index = items.firstIndex(of: itemNode)
+            {
                 collectItem(at: index)
             }
         }
