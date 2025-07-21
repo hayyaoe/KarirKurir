@@ -29,6 +29,9 @@ class GameScene: SKScene {
     var nextMaze: [[Int]] = []
     var nextWalls: [[SKSpriteNode]] = []
     var nextItems: [[ItemNode]] = [] // Changed from nextDestinations
+    var hearts: [HeartNode] = []
+    var heartGridPosition: (row: Int, col: Int)? = nil
+    let maxHealth: Int = 5 // Maximum hearts allowed
     
     // MARK: - Game State
     
@@ -368,82 +371,196 @@ class GameScene: SKScene {
     }
     
     func setupMaze(maze: [[Int]]) {
-        walls.forEach { $0.removeFromParent() }
-        items.forEach { $0.removeFromParent() } // Changed from destinations
-        pathTiles.forEach { $0.removeFromParent() }
-        holes.forEach { $0.removeFromParent() } // Remove holes
-        cats.forEach { $0.removeFromParent() }
-        wagons.forEach { $0.removeFromParent() }
-        
-        walls.removeAll()
-        items.removeAll() // Changed from destinations
-        pathTiles.removeAll()
-        holes.removeAll() // Clear holes array
-        cats.removeAll()
-        wagons.removeAll()
-        
-        let wallColor = [UIColor.blue, .purple, .red, .green, .orange, .cyan][(level - 1) % 6]
-        
-        // Center the maze on screen
-        let mazePixelWidth = CGFloat(mazeWidth) * gridSize
-        let mazePixelHeight = CGFloat(mazeHeight) * gridSize
-        let offsetX = (size.width - mazePixelWidth) / 2
-        let offsetY = (size.height - mazePixelHeight) / 2
-        
-        determineItemPositions(maze: maze)
-        
-        for (row, rowData) in maze.enumerated() {
-            for (col, cell) in rowData.enumerated() {
-                let position = CGPoint(
-                    x: offsetX + CGFloat(col) * gridSize + gridSize/2,
-                    y: offsetY + CGFloat(maze.count - row - 1) * gridSize + gridSize/2
-                )
-                
-                if cell == 1 {
-                    let isOverDestination = itemGridPositions.contains { $0.row == row && $0.col == col }
+            walls.forEach { $0.removeFromParent() }
+            items.forEach { $0.removeFromParent() }
+            pathTiles.forEach { $0.removeFromParent() }
+            holes.forEach { $0.removeFromParent() }
+            cats.forEach { $0.removeFromParent() }
+            wagons.forEach { $0.removeFromParent() }
+            hearts.forEach { $0.removeFromParent() } // Add heart cleanup
+            
+            walls.removeAll()
+            items.removeAll()
+            pathTiles.removeAll()
+            holes.removeAll()
+            cats.removeAll()
+            wagons.removeAll()
+            hearts.removeAll() // Add heart cleanup
+            
+            let wallColor = [UIColor.blue, .purple, .red, .green, .orange, .cyan][(level - 1) % 6]
+            
+            // Center the maze on screen
+            let mazePixelWidth = CGFloat(mazeWidth) * gridSize
+            let mazePixelHeight = CGFloat(mazeHeight) * gridSize
+            let offsetX = (size.width - mazePixelWidth) / 2
+            let offsetY = (size.height - mazePixelHeight) / 2
+            
+            determineItemPositions(maze: maze)
+            
+            // Determine heart position if this is a heart level
+            if shouldSpawnHeart() {
+                determineHeartPosition(maze: maze)
+            }
+            
+            for (row, rowData) in maze.enumerated() {
+                for (col, cell) in rowData.enumerated() {
+                    let position = CGPoint(
+                        x: offsetX + CGFloat(col) * gridSize + gridSize/2,
+                        y: offsetY + CGFloat(maze.count - row - 1) * gridSize + gridSize/2
+                    )
                     
-                    let textureName: String
-                    if isOverDestination {
-                        textureName = randomHouseAsset() // Use house textures for walls with items
-                    } else {
-                        textureName = randomWallAsset()
-                    }
-                    
-                    let wallTexture = SKTexture(imageNamed: textureName)
-                    let wall = SKSpriteNode(texture: wallTexture, size: CGSize(width: gridSize, height: gridSize))
-                    wall.position = position
-                    
-                    // Fix black background issue for house textures
-                    if isOverDestination {
-                        wall.colorBlendFactor = 0.0
-                        wall.color = .clear
-                        // Try to remove black backgrounds by setting blend mode
-                        wall.blendMode = .alpha
+                    if cell == 1 {
+                        let isOverDestination = itemGridPositions.contains { $0.row == row && $0.col == col }
                         
+                        let textureName: String
+                        if isOverDestination {
+                            textureName = randomHouseAsset() // Use house textures for walls with items
+                        } else {
+                            textureName = randomWallAsset()
+                        }
+                        
+                        let wallTexture = SKTexture(imageNamed: textureName)
+                        let wall = SKSpriteNode(texture: wallTexture, size: CGSize(width: gridSize, height: gridSize))
+                        wall.position = position
+                        
+                        // Fix black background issue for house textures
+                        if isOverDestination {
+                            wall.colorBlendFactor = 0.0
+                            wall.color = .clear
+                            wall.blendMode = .alpha
+                        }
+                        
+                        wall.physicsBody = SKPhysicsBody(rectangleOf: wall.size)
+                        wall.physicsBody?.categoryBitMask = 2
+                        wall.physicsBody?.isDynamic = false
+                        walls.append(wall)
+                        addChild(wall)
                     }
-                    
-                    wall.physicsBody = SKPhysicsBody(rectangleOf: wall.size)
-                    wall.physicsBody?.categoryBitMask = 2
-                    wall.physicsBody?.isDynamic = false
-                    walls.append(wall)
-                    addChild(wall)
                 }
             }
+            setupPathTiles(maze: maze, offsetX: offsetX, offsetY: offsetY)
+            
+            // Add holes based on level
+            if shouldHaveHoles() {
+                setupHoles(maze: maze, offsetX: offsetX, offsetY: offsetY)
+            }
+            
+            // Setup obstacles after game starts
+            if gameStarted {
+                setupObstacles(maze: maze, offsetX: offsetX, offsetY: offsetY)
+            }
+            
+            nextMaze = getMazeLayout(for: level + 1)
         }
-        setupPathTiles(maze: maze, offsetX: offsetX, offsetY: offsetY)
+    
+    // MARK: - Add heart-related helper methods
         
-        // Add holes based on level
-        if shouldHaveHoles() {
-            setupHoles(maze: maze, offsetX: offsetX, offsetY: offsetY)
+    func shouldSpawnHeart() -> Bool {
+            return level % 10 == 0 && level > 0 // Every 10 levels
         }
-        
-        // Setup obstacles after game starts
-        if gameStarted {
-            setupObstacles(maze: maze, offsetX: offsetX, offsetY: offsetY)
+    
+    func determineHeartPosition(maze: [[Int]]) {
+            heartGridPosition = nil
+            
+            var availablePathPositions: [CGPoint] = []
+            
+            // Pre-calculate maze offset for hole position calculations
+            let mazePixelWidth = CGFloat(mazeWidth) * gridSize
+            let mazePixelHeight = CGFloat(mazeHeight) * gridSize
+            let offsetX = (size.width - mazePixelWidth) / 2
+            let offsetY = (size.height - mazePixelHeight) / 2
+            
+            // Look for path/road positions (0 = path, 1 = wall)
+            for row in 2..<maze.count - 2 {
+                for col in 2..<maze[row].count - 2 {
+                    guard maze[row][col] == 0 else { continue } // This is a path/road
+                    
+                    // Check if this position is far enough from player starting area (bottom-left)
+                    let isNearStart = row >= maze.count - 4 && col <= 4
+                    guard !isNearStart else { continue }
+                    
+                    // Check if this position is too close to any item
+                    let isTooCloseToItems = itemGridPositions.contains { itemPos in
+                        let deltaRow = abs(itemPos.row - row)
+                        let deltaCol = abs(itemPos.col - col)
+                        return deltaRow <= 2 && deltaCol <= 2
+                    }
+                    guard !isTooCloseToItems else { continue }
+                    
+                    // Check if too close to holes (if any exist)
+                    var isTooCloseToHoles = false
+                    for hole in holes {
+                        let holeWorldX = hole.position.x - offsetX
+                        let holeWorldY = hole.position.y - offsetY
+                        let holeGridX = Int(holeWorldX / gridSize)
+                        let holeGridY = Int(holeWorldY / gridSize)
+                        let holeGridRow = maze.count - holeGridY - 1
+                        
+                        let deltaRow = abs(row - holeGridRow)
+                        let deltaCol = abs(col - holeGridX)
+                        
+                        if deltaRow <= 1 && deltaCol <= 1 {
+                            isTooCloseToHoles = true
+                            break
+                        }
+                    }
+                    guard !isTooCloseToHoles else { continue }
+                    
+                    // Make sure it's not in a dead-end (has multiple path connections)
+                    let adjacentPositions = [
+                        (row - 1, col),
+                        (row + 1, col),
+                        (row, col - 1),
+                        (row, col + 1)
+                    ]
+                    
+                    var pathCount = 0
+                    for (adjRow, adjCol) in adjacentPositions {
+                        let isInBounds = adjRow >= 0 && adjRow < maze.count && adjCol >= 0 && adjCol < maze[adjRow].count
+                        if isInBounds && maze[adjRow][adjCol] == 0 {
+                            pathCount += 1
+                        }
+                    }
+                    
+                    let hasGoodConnectivity = pathCount >= 2
+                    guard hasGoodConnectivity else { continue }
+                    
+                    // All checks passed, add this position
+                    availablePathPositions.append(CGPoint(x: col, y: row))
+                }
+            }
+            
+            if let selectedPosition = availablePathPositions.randomElement() {
+                heartGridPosition = (row: Int(selectedPosition.y), col: Int(selectedPosition.x))
+                print("Heart will spawn on road at row: \(heartGridPosition!.row), col: \(heartGridPosition!.col)")
+            } else {
+                print("No suitable road position found for heart spawn")
+            }
         }
-        
-        nextMaze = getMazeLayout(for: level + 1)
-    }
+    
+    func spawnHeart() {
+            guard let heartPos = heartGridPosition, gameStarted else { return }
+            
+            let mazePixelWidth = CGFloat(mazeWidth) * gridSize
+            let mazePixelHeight = CGFloat(mazeHeight) * gridSize
+            let offsetX = (size.width - mazePixelWidth) / 2
+            let offsetY = (size.height - mazePixelHeight) / 2
+            
+            let heartSize = CGSize(width: gridSize * 0.5, height: gridSize * 0.5)
+            let heart = HeartNode(size: heartSize)
+            
+            let heartPosition = CGPoint(
+                x: offsetX + CGFloat(heartPos.col) * gridSize + gridSize/2,
+                y: offsetY + CGFloat(currentMaze.count - heartPos.row - 1) * gridSize + gridSize/2
+            )
+            heart.position = heartPosition
+            heart.zPosition = 11 // Above path tiles but below player
+            
+            addChild(heart)
+            hearts.append(heart)
+            
+            print("Spawned heart on road at level \(level) at position \(heartPosition)")
+        }
     
     func determineItemPositions(maze: [[Int]]) {
         itemGridPositions.removeAll()
@@ -487,55 +604,140 @@ class GameScene: SKScene {
     }
     
     func spawnItems() {
-        guard gameStarted else { return }
-        
-        let mazePixelWidth = CGFloat(mazeWidth) * gridSize
-        let mazePixelHeight = CGFloat(mazeHeight) * gridSize
-        let offsetX = (size.width - mazePixelWidth) / 2
-        let offsetY = (size.height - mazePixelHeight) / 2
-        
-        for (row, col) in itemGridPositions {
-            let randomTime = Int.random(in: 16...25)
-            let itemSize = CGSize(width: gridSize * 0.6, height: gridSize * 0.6)
-            let item = ItemNode(size: itemSize, initialTime: randomTime)
+            guard gameStarted else { return }
             
-            let itemPosition = CGPoint(
-                x: offsetX + CGFloat(col) * gridSize + gridSize/2,
-                y: offsetY + CGFloat(currentMaze.count - row - 1) * gridSize + gridSize/2
-            )
-            item.position = itemPosition
-            item.zPosition = 15
+            let mazePixelWidth = CGFloat(mazeWidth) * gridSize
+            let mazePixelHeight = CGFloat(mazeHeight) * gridSize
+            let offsetX = (size.width - mazePixelWidth) / 2
+            let offsetY = (size.height - mazePixelHeight) / 2
             
-            item.physicsBody?.categoryBitMask = ItemNode.categoryBitMask
-            item.physicsBody?.contactTestBitMask = PlayerNode.category
-            item.physicsBody?.collisionBitMask = 0
-            
-            item.onTimerExpired = { [weak self, weak item] in
-                guard let self = self, let item = item, !self.isTransitioning, !self.isGameOver else { return }
-                if let index = self.items.firstIndex(of: item) {
-                    self.items.remove(at: index)
-                }
-                item.removeFromParent()
-                self.expiredItems += 1
+            // Spawn regular items
+            for (row, col) in itemGridPositions {
+                let randomTime = Int.random(in: 16...25)
+                let itemSize = CGSize(width: gridSize * 0.6, height: gridSize * 0.6)
+                let item = ItemNode(size: itemSize, initialTime: randomTime)
                 
-                print("Item expired, \(self.items.count) items remaining, \(self.expiredItems) expired")
+                let itemPosition = CGPoint(
+                    x: offsetX + CGFloat(col) * gridSize + gridSize/2,
+                    y: offsetY + CGFloat(currentMaze.count - row - 1) * gridSize + gridSize/2
+                )
+                item.position = itemPosition
+                item.zPosition = 15
                 
-                if self.items.isEmpty && !self.isTransitioning {
-                    self.checkLevelCompletion()
+                item.physicsBody?.categoryBitMask = ItemNode.categoryBitMask
+                item.physicsBody?.contactTestBitMask = PlayerNode.category
+                item.physicsBody?.collisionBitMask = 0
+                
+                item.onTimerExpired = { [weak self, weak item] in
+                    guard let self = self, let item = item, !self.isTransitioning, !self.isGameOver else { return }
+                    if let index = self.items.firstIndex(of: item) {
+                        self.items.remove(at: index)
+                    }
+                    item.removeFromParent()
+                    self.expiredItems += 1
+                    
+                    print("Item expired, \(self.items.count) items remaining, \(self.expiredItems) expired")
+                    
+                    if self.items.isEmpty && !self.isTransitioning {
+                        self.checkLevelCompletion()
+                    }
                 }
+                
+                addChild(item)
+                items.append(item)
             }
             
-            addChild(item)
-            items.append(item)
+            // Spawn heart if this is a heart level
+            if shouldSpawnHeart() {
+                spawnHeart()
+            }
+            
+            // Also spawn obstacles
+            setupObstacles(maze: currentMaze,
+                          offsetX: offsetX,
+                          offsetY: offsetY)
+            
+            print("Spawned \(items.count) items and \(hearts.count) hearts after game started")
         }
+    
+    // MARK: - Add heart collection method
         
-        // Also spawn obstacles
-                setupObstacles(maze: currentMaze,
-                              offsetX: offsetX,
-                              offsetY: offsetY)
-        
-        print("Spawned \(items.count) items after game started")
-    }
+    func collectHeart(_ heart: HeartNode) {
+            guard let index = hearts.firstIndex(of: heart) else { return }
+            
+            // Remove heart from array and scene
+            hearts.remove(at: index)
+            heart.removeFromParent()
+            
+            // Create collection effect
+            let collectEffect = SKShapeNode(circleOfRadius: gridSize * 0.5)
+            collectEffect.strokeColor = .systemRed
+            collectEffect.lineWidth = 3
+            collectEffect.fillColor = .clear
+            collectEffect.position = heart.position
+            collectEffect.zPosition = 20
+            addChild(collectEffect)
+            
+            let expandAction = SKAction.scale(to: 2.0, duration: 0.3)
+            let fadeAction = SKAction.fadeOut(withDuration: 0.3)
+            let removeEffect = SKAction.removeFromParent()
+            let effectSequence = SKAction.sequence([SKAction.group([expandAction, fadeAction]), removeEffect])
+            collectEffect.run(effectSequence)
+            
+            // Check if player has max health
+            if health >= maxHealth {
+                // Give score instead - twice the green category points
+                let greenCategoryPoints = ItemCategory.green.points
+                let bonusScore = greenCategoryPoints * 2 * 10 * level // Same formula as items but double green points
+                score += bonusScore
+                scoreLabel.text = "Score: \(score)"
+                
+                // Show bonus score message
+                let label = SKLabelNode(fontNamed: "Arial-BoldMT")
+                label.text = "+\(bonusScore) (Max Hearts!)"
+                label.fontSize = 20
+                label.fontColor = .systemYellow
+                label.position = CGPoint(x: heart.position.x, y: heart.position.y + 40)
+                addChild(label)
+                
+                let moveUp = SKAction.moveBy(x: 0, y: 30, duration: 0.8)
+                let fadeOut = SKAction.fadeOut(withDuration: 0.8)
+                let remove = SKAction.removeFromParent()
+                let sequence = SKAction.sequence([SKAction.group([moveUp, fadeOut]), remove])
+                label.run(sequence)
+                
+                print("Player at max health, gave \(bonusScore) points instead")
+                
+            } else {
+                // Increase health
+                health += 1
+                healthLabel.text = "❤️ \(health)"
+                
+                // Show health gain message
+                let label = SKLabelNode(fontNamed: "Arial-BoldMT")
+                label.text = "+1 Life! ❤️"
+                label.fontSize = 22
+                label.fontColor = .systemRed
+                label.position = CGPoint(x: heart.position.x, y: heart.position.y + 40)
+                addChild(label)
+                
+                // Animate the health gain message
+                let scaleUp = SKAction.scale(to: 1.2, duration: 0.2)
+                let scaleDown = SKAction.scale(to: 1.0, duration: 0.2)
+                let moveUp = SKAction.moveBy(x: 0, y: 30, duration: 0.8)
+                let fadeOut = SKAction.fadeOut(withDuration: 0.8)
+                let remove = SKAction.removeFromParent()
+                let sequence = SKAction.sequence([
+                    SKAction.group([scaleUp, moveUp]),
+                    scaleDown,
+                    SKAction.group([fadeOut]),
+                    remove
+                ])
+                label.run(sequence)
+                
+                print("Health increased to \(health)")
+            }
+        }
     
     func setupObstacles(maze: [[Int]], offsetX: CGFloat, offsetY: CGFloat) {
         let mazeOffset = CGPoint(x: offsetX, y: offsetY)
@@ -1262,7 +1464,9 @@ class GameScene: SKScene {
         let playerGridY = Int((player.position.y - offsetY) / gridSize)
         
         var itemsToCollect: [Int] = []
+        var heartsToCollect: [HeartNode] = []
         
+        // Check for item collection (items are on walls, so check adjacent positions)
         for (index, item) in items.enumerated() {
             let itemGridX = Int((item.position.x - offsetX) / gridSize)
             let itemGridY = Int((item.position.y - offsetY) / gridSize)
@@ -1277,8 +1481,31 @@ class GameScene: SKScene {
             }
         }
         
+        // Check for heart collection (hearts are on roads, so check same position or very close)
+        for heart in hearts {
+            let heartGridX = Int((heart.position.x - offsetX) / gridSize)
+            let heartGridY = Int((heart.position.y - offsetY) / gridSize)
+            
+            let deltaX = playerGridX - heartGridX
+            let deltaY = playerGridY - heartGridY
+            
+            // Check if player is on the same grid position as the heart or very close
+            let isOnSamePosition = abs(deltaX) <= 0 && abs(deltaY) <= 0
+            let isVeryClose = hypot(player.position.x - heart.position.x, player.position.y - heart.position.y) < gridSize * 0.7
+            
+            if isOnSamePosition || isVeryClose {
+                heartsToCollect.append(heart)
+            }
+        }
+        
+        // Collect items
         if !itemsToCollect.isEmpty {
             collectMultipleItems(at: itemsToCollect)
+        }
+        
+        // Collect hearts
+        for heart in heartsToCollect {
+            collectHeart(heart)
         }
     }
     
@@ -1310,45 +1537,46 @@ class GameScene: SKScene {
     }
     
     func setupNewLevel() {
-        print("Setting up new level \(level)")
-        
-        // Stop collision checking during transition
-        stopContinuousWagonCollisionCheck()
-        
-        isMoving = false
-        isCollecting = false
-        isOnHole = false
-        holeSlowdownEndTime = 0
-        currentDirection = .right
-        nextDirection = nil
-        collectedItems = 0
-        expiredItems = 0
-        playerFollowingWagon = false
+            print("Setting up new level \(level)")
+            
+            // Stop collision checking during transition
+            stopContinuousWagonCollisionCheck()
+            
+            isMoving = false
+            isCollecting = false
+            isOnHole = false
+            holeSlowdownEndTime = 0
+            currentDirection = .right
+            nextDirection = nil
+            collectedItems = 0
+            expiredItems = 0
+            playerFollowingWagon = false
+            heartGridPosition = nil // Clear heart position
 
-        // Clear hole effect for level transition
-        player.hideSlowdownEffect()
-        
-        // Clear all wagon interactions properly
-        clearAllWagonInteractions()
-        
-        currentMaze = nextMaze.isEmpty ? getMazeLayout(for: level) : nextMaze
-        setupMaze(maze: currentMaze)
-        spawnItems() // Spawn items immediately for new level
-        findSafeStartingPosition()
-        
-        // Update obstacle references to new maze
-        updateObstacleReferences()
-        
-        run(.sequence([
-            .wait(forDuration: 0.1),
-            .run { [weak self] in
-                self?.startPlayerMovement() // This will also restart collision checking
-                self?.isTransitioning = false
-                print("Level transition complete - input and movement re-enabled")
-                print("Level \(self?.level ?? 0) stats: Speed factor: \(self?.getPlayerSpeedFactor() ?? 0), Items: \(self?.getItemCount() ?? 0), Holes: \(self?.getHoleCount() ?? 0)")
-            }
-        ]))
-    }
+            // Clear hole effect for level transition
+            player.hideSlowdownEffect()
+            
+            // Clear all wagon interactions properly
+            clearAllWagonInteractions()
+            
+            currentMaze = nextMaze.isEmpty ? getMazeLayout(for: level) : nextMaze
+            setupMaze(maze: currentMaze)
+            spawnItems() // This will now also spawn hearts if needed
+            findSafeStartingPosition()
+            
+            // Update obstacle references to new maze
+            updateObstacleReferences()
+            
+            run(.sequence([
+                .wait(forDuration: 0.1),
+                .run { [weak self] in
+                    self?.startPlayerMovement() // This will also restart collision checking
+                    self?.isTransitioning = false
+                    print("Level transition complete - input and movement re-enabled")
+                    print("Level \(self?.level ?? 0) stats: Speed factor: \(self?.getPlayerSpeedFactor() ?? 0), Items: \(self?.getItemCount() ?? 0), Holes: \(self?.getHoleCount() ?? 0), Hearts: \(self?.hearts.count ?? 0)")
+                }
+            ]))
+        }
     
     func updateObstacleReferences() {
         let mazePixelWidth = CGFloat(mazeWidth) * gridSize
@@ -1581,50 +1809,52 @@ class GameScene: SKScene {
     }
     
     func restartGame() {
-        print("Restarting game...")
-        
-        // Stop collision checking
-        stopContinuousWagonCollisionCheck()
-        
-        // Hide any active hole effects before restart
-        player?.hideSlowdownEffect()
-        
-        // Clear all wagon interactions properly
-        clearAllWagonInteractions()
-        
-        // Reset game state
-        score = 0
-        level = 1
-        health = 3
-        isGameOver = false
-        isTransitioning = false
-        isMoving = false
-        isCollecting = false
-        isOnHole = false
-        holeSlowdownEndTime = 0
-        currentDirection = .right
-        nextDirection = nil
-        collectedItems = 0
-        expiredItems = 0
-        gameStarted = false
-        waitingForFirstSwipe = true
-        playerFollowingWagon = false
+            print("Restarting game...")
+            
+            // Stop collision checking
+            stopContinuousWagonCollisionCheck()
+            
+            // Hide any active hole effects before restart
+            player?.hideSlowdownEffect()
+            
+            // Clear all wagon interactions properly
+            clearAllWagonInteractions()
+            
+            // Reset game state
+            score = 0
+            level = 1
+            health = 3 // Start with 3 hearts
+            isGameOver = false
+            isTransitioning = false
+            isMoving = false
+            isCollecting = false
+            isOnHole = false
+            holeSlowdownEndTime = 0
+            currentDirection = .right
+            nextDirection = nil
+            collectedItems = 0
+            expiredItems = 0
+            gameStarted = false
+            waitingForFirstSwipe = true
+            playerFollowingWagon = false
+            heartGridPosition = nil // Clear heart position
 
-        // Remove all children and start fresh
-        removeAllChildren()
-        
-        // Clear arrays
-        walls.removeAll()
-        items.removeAll()
-        pathTiles.removeAll()
-        holes.removeAll()
-        cats.removeAll()
-        wagons.removeAll()
-        itemGridPositions.removeAll()
-        
-        // Restart the game
-        didMove(to: view!)
-    }
+            // Remove all children and start fresh
+            removeAllChildren()
+            
+            // Clear arrays
+            walls.removeAll()
+            items.removeAll()
+            pathTiles.removeAll()
+            holes.removeAll()
+            cats.removeAll()
+            wagons.removeAll()
+            hearts.removeAll() // Clear hearts
+            itemGridPositions.removeAll()
+            
+            // Restart the game
+            didMove(to: view!)
+        }
     
     func collectMultipleItems(at indices: [Int]) {
         guard !indices.isEmpty, !isTransitioning, !isGameOver else { return }
@@ -1751,6 +1981,17 @@ extension GameScene: SKPhysicsContactDelegate {
             if let itemNode = a.node as? ItemNode,
                let index = items.firstIndex(of: itemNode) {
                 collectMultipleItems(at: [index])
+            }
+        }
+        
+        // Check for player-heart collision
+        if a.categoryBitMask == PlayerNode.category && b.categoryBitMask == HeartNode.categoryBitMask {
+            if let heartNode = b.node as? HeartNode {
+                collectHeart(heartNode)
+            }
+        } else if b.categoryBitMask == PlayerNode.category && a.categoryBitMask == HeartNode.categoryBitMask {
+            if let heartNode = a.node as? HeartNode {
+                collectHeart(heartNode)
             }
         }
         
