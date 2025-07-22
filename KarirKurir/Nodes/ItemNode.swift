@@ -8,7 +8,6 @@
 import SpriteKit
 
 class ItemNode: SKSpriteNode {
-    
     private var countdownTimer: Timer?
     private var remainingTime: Int
     private var initialTime: Int
@@ -38,6 +37,7 @@ class ItemNode: SKSpriteNode {
         startCountdown()
     }
     
+    @available(*, unavailable)
     required init?(coder aDecoder: NSCoder) {
         fatalError("init(coder:) has not been implemented")
     }
@@ -76,13 +76,13 @@ class ItemNode: SKSpriteNode {
     }
     
     private func setupPhysics() {
-        self.physicsBody = SKPhysicsBody(circleOfRadius: size.width / 2)
-        self.physicsBody?.isDynamic = false
+        physicsBody = SKPhysicsBody(circleOfRadius: size.width / 2)
+        physicsBody?.isDynamic = false
         
         // Assign Physics Categories
-        self.physicsBody?.categoryBitMask = ItemNode.categoryBitMask
-        self.physicsBody?.collisionBitMask = PlayerNode.category
-        self.physicsBody?.contactTestBitMask = 0
+        physicsBody?.categoryBitMask = ItemNode.categoryBitMask
+        physicsBody?.collisionBitMask = PlayerNode.category
+        physicsBody?.contactTestBitMask = 0
     }
     
     private func startCountdown() {
@@ -118,9 +118,9 @@ class ItemNode: SKSpriteNode {
         
         // Update category and color based on remaining time
         let newCategory = ItemCategory.category(for: remainingTime)
-        if newCategory != self.category {
+        if newCategory != category {
             // Update the internal category state
-            self.category = newCategory
+            category = newCategory
             
             // Update progress bar color with animation
             let colorChangeAction = SKAction.run {

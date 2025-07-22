@@ -5,13 +5,14 @@
 //  Created by Mahardika Putra Wardhana on 13/07/25.
 //
 
-func getMazeLayout(for level: Int) -> [[Int]] {
+func getMazeLayout(for level: Int) -> ([[Int]], [(row: Int, col: Int)]) {
     return generateRandomMaze(width: 20, height: 11, complexity: min(level, 5))
 }
 
-func generateRandomMaze(width: Int, height: Int, complexity: Int) -> [[Int]] {
+func generateRandomMaze(width: Int, height: Int, complexity: Int) -> ([[Int]], [(row: Int, col: Int)]) {
     // Initialize maze with all walls
     var maze = Array(repeating: Array(repeating: 1, count: width), count: height)
+    var houseAreas: [(row: Int, col: Int)] = []
 
     // Ensure outer walls are always walls
     for i in 0..<height {
@@ -104,8 +105,44 @@ func generateRandomMaze(width: Int, height: Int, complexity: Int) -> [[Int]] {
 //        if level > 2 {
 //            addRandomWalls(&maze, width: width, height: height, count: level * 2)
 //        }
+    let houseCandidates = findHouseAreas(in: maze)
+    if let selectedHouse = houseCandidates.randomElement() {
+        houseAreas.append(selectedHouse)
+    }
 
-    return maze
+    return (maze, houseAreas)
+}
+
+func findHouseAreas(in maze: [[Int]]) -> [(row: Int, col: Int)] {
+    var result: [(row: Int, col: Int)] = []
+    let height = maze.count
+    let width = maze[0].count
+
+    for row in 1..<height - 2 {
+        for col in 1..<width - 2 {
+            let tiles = [
+                maze[row][col],
+                maze[row + 1][col],
+                maze[row][col + 1],
+                maze[row + 1][col + 1]
+            ]
+
+            guard tiles.allSatisfy({ $0 == 1 }) else { continue }
+
+            let adjacent = [
+                maze[row - 1][col], maze[row - 1][col + 1],
+                maze[row + 2][col], maze[row + 2][col + 1],
+                maze[row][col - 1], maze[row + 1][col - 1],
+                maze[row][col + 2], maze[row + 1][col + 2]
+            ]
+
+            if adjacent.contains(0) {
+                result.append((row: row, col: col))
+            }
+        }
+    }
+
+    return result
 }
 
 func addStrategicOpenings(_ maze: inout [[Int]], width: Int, height: Int) {
@@ -212,7 +249,7 @@ func spriteNameFor(tileType: PathTileType) -> String {
 func randomWallAsset() -> String {
     let options = [
         "pathTree",
-        "pathGrass",
+        "pathGrass"
 //        "warung1",
 //        "warung2",
 //        "warung3",

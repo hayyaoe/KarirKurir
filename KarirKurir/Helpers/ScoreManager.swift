@@ -23,6 +23,7 @@ class ScoreManager: ObservableObject {
     func updateScore(_ newScore: Int) {
         if newScore > highScore {
             highScore = newScore
+            GameCenterManager.shared.beatHighScore()
         }
         print(highScore)
     }

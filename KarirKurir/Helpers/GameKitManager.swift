@@ -90,23 +90,23 @@ class GameCenterManager: NSObject, GKGameCenterControllerDelegate {
     func completeLevel(_ level: Int) {
         switch level {
         case 1:
-            GameCenterManager.shared.reportAchievement(identifier: "first_level", percentComplete: 100)
+            GameCenterManager.shared.reportAchievement(identifier: "karirKurirAchievement1", percentComplete: 100)
         case 10:
-            GameCenterManager.shared.reportAchievement(identifier: "level_10", percentComplete: 100)
+            GameCenterManager.shared.reportAchievement(identifier: "karirKurirAchievement2", percentComplete: 100)
         case 50:
-            GameCenterManager.shared.reportAchievement(identifier: "level_50", percentComplete: 100)
+            GameCenterManager.shared.reportAchievement(identifier: "karirKurirAchievement3", percentComplete: 100)
         case 100:
-            GameCenterManager.shared.reportAchievement(identifier: "level_100", percentComplete: 100)
+            GameCenterManager.shared.reportAchievement(identifier: "karirKurirAchievement4", percentComplete: 100)
         default:
             break
         }
     }
 
     func beatHighScore() {
-        GameCenterManager.shared.reportAchievement(identifier: "beat_highscore", percentComplete: 100)
+        GameCenterManager.shared.reportAchievement(identifier: "karirKurirAchievement5", percentComplete: 100)
     }
 
     func gotAllGreen() {
-        GameCenterManager.shared.reportAchievement(identifier: "all_green_one_level", percentComplete: 100)
+        GameCenterManager.shared.reportAchievement(identifier: "karirKurirAchievement6", percentComplete: 100)
     }
 }

@@ -21,6 +21,10 @@ class GameScene: SKScene {
     var collectedItems: Int = 0
     var expiredItems: Int = 0
     var holes: [SKSpriteNode] = [] // Add holes array
+    var houseAreas: [(row: Int, col: Int)] = []
+    var nextHouseAreas: [(row: Int, col: Int)] = []
+    
+    var allItemsCollectedWhileGreen: Bool = true
 
     // Next Object
     var nextMaze: [[Int]] = []
@@ -79,8 +83,11 @@ class GameScene: SKScene {
         calculateOptimalGridSize()
         
         setupGestures()
-        currentMaze = getMazeLayout(for: level)
-        
+        let (maze, houses) = getMazeLayout(for: level)
+        currentMaze = maze
+        houseAreas = houses
+        setupMaze(maze: maze)
+
         // Setup initial player position first
         setupInitialPlayerPosition()
         
@@ -236,6 +243,26 @@ class GameScene: SKScene {
         setupItemsOnWalls(maze: maze, offsetX: offsetX, offsetY: offsetY)
 
         for (row, rowData) in maze.enumerated() {
+            // Gambar rumah besar (72x72)
+            for house in houseAreas {
+                let row = house.row
+                let col = house.col
+
+                let housePosition = CGPoint(
+                    x: offsetX + CGFloat(col) * gridSize + gridSize,
+                    y: offsetY + CGFloat(maze.count - row - 2) * gridSize + gridSize
+                )
+
+                let houseNode = SKSpriteNode(texture: SKTexture(imageNamed: randomHouseAsset()), size: CGSize(width: 72, height: 72))
+                houseNode.position = housePosition
+                houseNode.zPosition = 5
+                houseNode.physicsBody = SKPhysicsBody(rectangleOf: houseNode.size)
+                houseNode.physicsBody?.isDynamic = false
+                houseNode.physicsBody?.categoryBitMask = 2
+                walls.append(houseNode)
+                addChild(houseNode)
+            }
+
             for (col, cell) in rowData.enumerated() {
                 let position = CGPoint(
                     x: offsetX + CGFloat(col) * gridSize + gridSize/2,
@@ -243,11 +270,19 @@ class GameScene: SKScene {
                 )
 
                 if cell == 1 {
+                    // Lewati jika bagian dari rumah besar
+                    let isPartOfHouse = houseAreas.contains { house in
+                        (row == house.row || row == house.row + 1) &&
+                            (col == house.col || col == house.col + 1)
+                    }
+                    if isPartOfHouse { continue }
+
+                    // lanjutkan rendering wall biasa...
                     let isOverDestination = itemGridPositions.contains { $0.row == row && $0.col == col }
 
                     let textureName: String
                     if isOverDestination {
-                        textureName = randomHouseAsset() // Use house textures for walls with items
+                        textureName = randomHouseAsset()
                     } else {
                         textureName = randomWallAsset()
                     }
@@ -276,8 +311,6 @@ class GameScene: SKScene {
         
         // Add holes based on level
         setupHoles(maze: maze, offsetX: offsetX, offsetY: offsetY)
-
-        nextMaze = getMazeLayout(for: level + 1)
     }
 
     func setupItemsOnWalls(maze: [[Int]], offsetX: CGFloat, offsetY: CGFloat, count: Int = 10) {
@@ -316,7 +349,7 @@ class GameScene: SKScene {
         }
         
         // Select random wall positions for items
-        let selectedPositions = Array(accessibleWallPositions.shuffled().prefix(count))
+        let selectedPositions = Array(accessibleWallPositions.shuffled().prefix(1))
         
         for wallPos in selectedPositions {
             let row = Int(wallPos.y)
@@ -362,9 +395,45 @@ class GameScene: SKScene {
             items.append(item)
         }
         
+        for house in houseAreas {
+            let row = house.row
+            let col = house.col
+
+            let itemPosition = CGPoint(
+                x: offsetX + CGFloat(col) * gridSize + gridSize,
+                y: offsetY + CGFloat(maze.count - row - 2) * gridSize + gridSize
+            )
+
+            let randomTime = Int.random(in: 16...25)
+            let itemSize = CGSize(width: gridSize * 0.6, height: gridSize * 0.6)
+            let item = ItemNode(size: itemSize, initialTime: randomTime)
+            item.position = itemPosition
+            item.zPosition = 15
+
+            item.physicsBody?.categoryBitMask = ItemNode.categoryBitMask
+            item.physicsBody?.contactTestBitMask = PlayerNode.category
+            item.physicsBody?.collisionBitMask = 0
+
+            item.onTimerExpired = { [weak self, weak item] in
+                guard let self = self, let item = item, !self.isTransitioning, !self.isGameOver else { return }
+                if let index = self.items.firstIndex(of: item) {
+                    self.items.remove(at: index)
+                }
+                item.removeFromParent()
+                self.expiredItems += 1
+
+                if self.items.isEmpty && !self.isTransitioning {
+                    self.checkLevelCompletion()
+                }
+            }
+
+            addChild(item)
+            items.append(item)
+        }
+
         print("Setup \(items.count) items on walls")
     }
-
+    
     func setupPathTiles(maze: [[Int]], offsetX: CGFloat, offsetY: CGFloat) {
         for row in 1 ..< maze.count - 1 {
             for col in 1 ..< maze[row].count - 1 {
@@ -571,6 +640,7 @@ class GameScene: SKScene {
 //        addChild(playerGlow)
 //
 //        // Animate collection effect
+//        // Animate collection effect
 //        let expandAction = SKAction.scale(to: 2.0, duration: 0.3)
 //        let fadeAction = SKAction.fadeOut(withDuration: 0.3)
 //        let removeEffect = SKAction.removeFromParent()
@@ -628,10 +698,13 @@ class GameScene: SKScene {
         print("Starting level transition to level \(level + 1)")
         stopPlayerMovement()
         clearInputState()
-        
+        GameCenterManager.shared.completeLevel(level)
+        if allItemsCollectedWhileGreen == true {
+            GameCenterManager.shared.gotAllGreen()
+        }
+
         level += 1
         levelLabel.text = "Level: \(level)"
-        GameCenterManager.shared.completeLevel(level)
         
         // Show level complete message
         let label = SKLabelNode(fontNamed: "Arial-BoldMT")
@@ -665,7 +738,15 @@ class GameScene: SKScene {
         expiredItems = 0
         
         // Setup new maze
-        currentMaze = nextMaze.isEmpty ? getMazeLayout(for: level) : nextMaze
+        if nextMaze.isEmpty {
+            let (maze, houses) = getMazeLayout(for: level)
+            currentMaze = maze
+            houseAreas = houses // ✅ SIMPAN house-nya
+        } else {
+            let (nextGeneratedMaze, nextHouses) = getMazeLayout(for: level + 1)
+            nextMaze = nextGeneratedMaze
+            nextHouseAreas = nextHouses // ✅ simpan untuk level berikutnya
+        }
         setupMaze(maze: currentMaze)
         findSafeStartingPosition()
         
@@ -937,7 +1018,10 @@ class GameScene: SKScene {
             guard index < items.count else { continue }
             
             let item = items[index]
-            
+            if item.category != .green {
+                allItemsCollectedWhileGreen = false
+            }
+
             // Calculate score based on item category
             let points = item.category.points * 10 * level
             totalPoints += points
@@ -966,6 +1050,7 @@ class GameScene: SKScene {
         
         // Update score with total points
         score += totalPoints
+        ScoreManager.shared.updateScore(score)
         scoreLabel.text = "Score: \(score)"
         
         // Show combined score feedback
