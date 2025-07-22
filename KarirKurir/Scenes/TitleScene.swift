@@ -13,9 +13,12 @@ class TitleScene: SKScene {
     var bakso: SKSpriteNode
     let tileSize: CGFloat = 40
     let scrollSpeed: CGFloat = 100.0
+    let playButton: SKSpriteNode
 
     var pathTiles: [SKSpriteNode] = []
     var wallTiles: [SKSpriteNode] = []
+    
+    private var settingNode: SettingNode!
 
     override init(size: CGSize) {
         player = SKSpriteNode(imageNamed: "courierRight1")
@@ -41,12 +44,27 @@ class TitleScene: SKScene {
         let framesBakso = (1 ... 4).map { SKTexture(imageNamed: "obstacleWagonRight\($0)") }
         let walkBakso = SKAction.animate(with: framesBakso, timePerFrame: 0.15)
         bakso.run(SKAction.repeatForever(walkBakso))
+        
+        playButton = SKSpriteNode(imageNamed: "PlayButton")
+        playButton.name = "playButton"
+        playButton.zPosition = 101
+        playButton.position = CGPoint(x: 420, y: 80)
+        playButton.setScale(0.45)
+        
+        let pauseButton = SKSpriteNode(imageNamed: "SettingButton")
+        pauseButton.name = "settingButton"
+        pauseButton.position = CGPoint(x: size.width - 120, y: size.height - 50)
+        pauseButton.zPosition = 100
 
         super.init(size: size)
         addChild(player)
         addChild(cat)
         addChild(bakso)
+        addChild(playButton)
+        addChild(pauseButton)
         setupScrollingBackground()
+        
+        playMusicIfEnabled(named: "HeatleyBros - HeatleyBros I - 06 8 Bit Love", on: self)
     }
 
     @available(*, unavailable)
@@ -126,5 +144,109 @@ class TitleScene: SKScene {
                 tile.position.x += tile.size.width * CGFloat(pathTiles.count)
             }
         }
+    }
+    
+    override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
+        for touch in touches {
+            let location = touch.location(in: self)
+            let node = atPoint(location)
+            
+            // Play Button
+            if node.name == "playButton" || node.parent?.name == "playButton" {
+                // Add button press effect
+                playButton.removeAllActions()
+                node.childNode(withName: "backgroundMusic")?.removeFromParent()
+                let pressDown = SKAction.scale(to: 0.35, duration: 0.1)
+                let pressUp = SKAction.scale(to: 0.45, duration: 0.1)
+                let sequence = SKAction.sequence([pressDown, pressUp])
+                
+                playSoundIfEnabled(named: "select.wav", on: self)
+                
+                playButton.run(sequence) {
+                    // Navigate to game scene after animation
+                    self.navigateToGameScene()
+                }
+                return
+            }
+            
+            // Pause Button
+            if node.name == "settingButton" || node.parent?.name == "settingButton" {
+                playSoundIfEnabled(named: "select.wav", on: self)
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                    self.showSettingMenu()
+                }
+                return
+            }
+            
+            // Toggle SFX - Special handling needed
+            if node.name == "sfxToggle" || node.parent?.name == "sfxToggle" {
+                let sound = SKAction.playSoundFileNamed("select.wav", waitForCompletion: false)
+                self.run(sound)
+                
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                    self.settingNode?.toggleSetting(named: "soundEffectsEnabled")
+                }
+                return
+            }
+            
+            // Toggle Haptics
+            if node.name == "hapticsToggle" || node.parent?.name == "hapticsToggle" {
+                let sound = SKAction.playSoundFileNamed("select.wav", waitForCompletion: false)
+                self.run(sound)
+                
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                    self.settingNode?.toggleSetting(named: "hapticsEnabled")
+                }
+                return
+            }
+            
+            // Toggle Music
+            if node.name == "musicToggle" || node.parent?.name == "musicToggle" {
+                let sound = SKAction.playSoundFileNamed("select.wav", waitForCompletion: false)
+                self.run(sound)
+                
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                    self.settingNode?.toggleSetting(named: "musicEnabled")
+                    self.toggleMusic(on: self, fileName: "HeatleyBros - HeatleyBros I - 06 8 Bit Love")
+                }
+
+                return
+            }
+            
+            // Resume Game
+            if node.name == "closeButton" || node.parent?.name == "closeButton" {
+                playSoundIfEnabled(named: "select.wav", on: self)
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                    self.hideSettingMenu()
+                }
+                return
+            }
+            
+        }
+    }
+    
+    func showSettingMenu() {
+        if settingNode == nil {
+            settingNode = SettingNode()
+            settingNode?.position = CGPoint(x: frame.midX, y: frame.midY)
+            settingNode?.zPosition = 100
+            addChild(settingNode!)
+        }
+    }
+
+
+    func hideSettingMenu() {
+        settingNode?.removeFromParent()
+        settingNode = nil
+    }
+    
+    func navigateToGameScene() {
+        let gameScene = GameScene()
+        let screenBounds = UIScreen.main.bounds
+        let screenSize = CGSize(width: screenBounds.width, height: screenBounds.height)
+        gameScene.size = screenSize
+        
+        let transition = SKTransition.fade(withDuration: 1.0)
+        self.view?.presentScene(gameScene, transition: transition)
     }
 }

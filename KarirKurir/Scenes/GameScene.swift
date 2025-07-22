@@ -12,8 +12,9 @@ class GameScene: SKScene {
     
     var player: PlayerNode!
     
-    private var pauseMenu: PauseMenuNode?
     private var pauseNode: PauseMenuNode?
+    private var gameOverNode: GameOverNode?
+//    private var musicNode: SKAudioNode?
 
     
     // get current maze -> render walls -> render destinations
@@ -48,7 +49,7 @@ class GameScene: SKScene {
     var scoreLabel: SKLabelNode!
     var levelLabel: SKLabelNode!
     var healthLabel: SKLabelNode!
-
+    
     // MARK: - Constants
 
     let playerSpeed: CGFloat = 100.0
@@ -93,6 +94,7 @@ class GameScene: SKScene {
         
         startPlayerMovement()
         setupUI()
+        playMusicIfEnabled(named: "HeatleyBros - HeatleyBros I - 13 8 Bit Summer", on: self)
         physicsWorld.contactDelegate = self
     }
 
@@ -174,20 +176,23 @@ class GameScene: SKScene {
     func setupUI() {
         // Position UI elements relative to screen size
         let margin: CGFloat = 20
-        scoreLabel = createLabel(text: "Score: 0", position: CGPoint(x: margin + 100, y: size.height - 50))
-        levelLabel = createLabel(text: "Level: 1", position: CGPoint(x: margin + 250, y: size.height - 50))
-        healthLabel = createLabel(text: "❤️ \(health)", position: CGPoint(x: margin + 400, y: size.height - 50))
+        scoreLabel = createLabel(text: "Score: 0", position: CGPoint(x: margin + 120, y: size.height - 50))
+        levelLabel = createLabel(text: "Level: 1", position: CGPoint(x: margin + 300, y: size.height - 50))
+        healthLabel = createLabel(text: "\(health)", position: CGPoint(x: margin + 400, y: size.height - 50))
+        let healthSprite = SKSpriteNode(imageNamed: "HealthIcon")
+        healthSprite.zPosition = 100
+        healthSprite.position = CGPoint(x: margin + 418, y: size.height - 42)
+        healthSprite.setScale(0.2)
+        
+        addChild(healthSprite)
         addChild(scoreLabel)
         addChild(levelLabel)
         addChild(healthLabel)
         
-        let pauseButton = SKLabelNode(text: "Pause")
+        let pauseButton = SKSpriteNode(imageNamed: "PauseButton")
         pauseButton.name = "pauseButton"
-        pauseButton.fontName = "LuckiestGuy-Regular"
-        pauseButton.fontSize = 24
-        pauseButton.fontColor = .white
-        pauseButton.position = CGPoint(x: size.width - 100, y: size.height - 50)
-        pauseButton.zPosition = 10
+        pauseButton.position = CGPoint(x: size.width - 120, y: size.height - 50)
+        pauseButton.zPosition = 100
         addChild(pauseButton)
 
     }
@@ -720,7 +725,7 @@ class GameScene: SKScene {
         // If any items expired, lose health
         if expiredItems > 0 {
             health -= 1
-            healthLabel.text = "❤️ \(health)"
+            healthLabel.text = "\(health)"
             
             // Show health loss feedback
             showHealthLossMessage()
@@ -765,87 +770,15 @@ class GameScene: SKScene {
         stopPlayerMovement()
         clearInputState()
         
-        // Play sound on Game Over
-        playSoundIfEnabled(named: "lose.wav", on: player)
+//         Play sound on Game Over
+        playSoundIfEnabled(named: "lose.wav", on: self)
         
-        // Run Heptics
+//         Run Heptics
         HapticHelper.trigger(.impact(.heavy))
+//         Create game over modal
+        showGameOver()
         
-        print("Game Over!")
-        
-        // Create game over modal
-        createGameOverModal()
-    }
-    
-    func createGameOverModal() {
-        // Create semi-transparent background
-        let overlay = SKShapeNode(rect: CGRect(x: 0, y: 0, width: size.width, height: size.height))
-        overlay.fillColor = SKColor.black
-        overlay.alpha = 0.7
-        overlay.zPosition = 100
-        addChild(overlay)
-        
-        // Create modal background
-        let modalWidth: CGFloat = 400
-        let modalHeight: CGFloat = 300
-        let modal = SKShapeNode(rectOf: CGSize(width: modalWidth, height: modalHeight), cornerRadius: 20)
-        modal.fillColor = SKColor.darkGray
-        modal.strokeColor = SKColor.white
-        modal.lineWidth = 3
-        modal.position = CGPoint(x: size.width/2, y: size.height/2)
-        modal.zPosition = 101
-        addChild(modal)
-        
-        // Game Over title
-        let titleLabel = SKLabelNode(fontNamed: "LuckiestGuy-Regular")
-        titleLabel.text = "GAME OVER"
-        titleLabel.fontSize = 32
-        titleLabel.fontColor = .red
-        titleLabel.position = CGPoint(x: 0, y: 60)
-        titleLabel.zPosition = 102
-        modal.addChild(titleLabel)
-        
-        // Final score
-        let scoreText = SKLabelNode(fontNamed: "LuckiestGuy-Regular")
-        scoreText.text = "Final Score: \(score)"
-        scoreText.fontSize = 20
-        scoreText.fontColor = .white
-        scoreText.position = CGPoint(x: 0, y: 20)
-        scoreText.zPosition = 102
-        modal.addChild(scoreText)
-        
-        // Level reached
-        let levelText = SKLabelNode(fontNamed: "LuckiestGuy-Regular")
-        levelText.text = "Level Reached: \(level)"
-        levelText.fontSize = 20
-        levelText.fontColor = .white
-        levelText.position = CGPoint(x: 0, y: -10)
-        levelText.zPosition = 102
-        modal.addChild(levelText)
-        
-        // Retry button
-        let retryButton = SKShapeNode(rectOf: CGSize(width: 120, height: 50), cornerRadius: 10)
-        retryButton.fillColor = SKColor.systemBlue
-        retryButton.strokeColor = SKColor.white
-        retryButton.lineWidth = 2
-        retryButton.position = CGPoint(x: 0, y: -70)
-        retryButton.zPosition = 102
-        retryButton.name = "retryButton"
-        modal.addChild(retryButton)
-        
-        let retryLabel = SKLabelNode(fontNamed: "LuckiestGuy-Regular")
-        retryLabel.text = "RETRY"
-        retryLabel.fontSize = 18
-        retryLabel.fontColor = .white
-        retryLabel.position = CGPoint(x: 0, y: -6)
-        retryLabel.zPosition = 103
-        retryButton.addChild(retryLabel)
-        
-        // Animate modal appearance
-        modal.setScale(0)
-        let scaleAction = SKAction.scale(to: 1.0, duration: 0.3)
-        scaleAction.timingMode = .easeOut
-        modal.run(scaleAction)
+//        print("Game Over!")
     }
     
     override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
@@ -853,44 +786,75 @@ class GameScene: SKScene {
             for touch in touches {
                 let location = touch.location(in: self)
                 let node = atPoint(location)
-
                 if node.name == "retryButton" || node.parent?.name == "retryButton" {
-                    restartGame()
+                    playSoundIfEnabled(named: "select.wav", on: self)
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                        self.hideGameOver()
+                        self.restartGame()
+                    }
                 }
             }
             return
         }
-
+        
         for touch in touches {
             let location = touch.location(in: self)
             let node = atPoint(location)
-
-            // Toggle SFX
-            if node.name == "sfxToggle" || node.parent?.name == "sfxToggle" {
-                pauseNode?.toggleSetting(named: "soundEffectsEnabled")
+            
+            // Pause Button
+            if node.name == "pauseButton" || node.parent?.name == "pauseButton" {
+                playSoundIfEnabled(named: "select.wav", on: self)
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                    self.showPauseMenu()
+                }
                 return
             }
-
+            
+            // Toggle SFX - Special handling needed
+            if node.name == "sfxToggle" || node.parent?.name == "sfxToggle" {
+                let sound = SKAction.playSoundFileNamed("select.wav", waitForCompletion: false)
+                self.run(sound)
+                
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                    self.pauseNode?.toggleSetting(named: "soundEffectsEnabled")
+                }
+                return
+            }
+            
             // Toggle Haptics
             if node.name == "hapticsToggle" || node.parent?.name == "hapticsToggle" {
-                pauseNode?.toggleSetting(named: "hapticsEnabled")
+                let sound = SKAction.playSoundFileNamed("select.wav", waitForCompletion: false)
+                self.run(sound)
+                
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                    self.pauseNode?.toggleSetting(named: "hapticsEnabled")
+                }
                 return
             }
+            
+            // Toggle Music
+            if node.name == "musicToggle" || node.parent?.name == "musicToggle" {
+                let sound = SKAction.playSoundFileNamed("select.wav", waitForCompletion: false)
+                self.run(sound)
+                
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                    self.pauseNode?.toggleSetting(named: "musicEnabled")
+                    self.toggleMusic(on: self, fileName: "HeatleyBros - HeatleyBros I - 13 8 Bit Summer")
+                }
 
+                return
+            }
+            
             // Resume Game
             if node.name == "resumeButton" || node.parent?.name == "resumeButton" {
-                hidePauseMenu()
-                return
-            }
-
-            // Pause Button
-            if node.name == "pauseButton" {
-                showPauseMenu()
+                playSoundIfEnabled(named: "select.wav", on: self)
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                    self.hidePauseMenu()
+                }
                 return
             }
         }
     }
-
 
     
     func setupHoles(maze: [[Int]], offsetX: CGFloat, offsetY: CGFloat) {
@@ -1141,7 +1105,7 @@ class GameScene: SKScene {
         isPaused = true
         if pauseNode == nil {
             pauseNode = PauseMenuNode()
-            pauseNode?.position = CGPoint(x: frame.midX, y: frame.midY) // ✅ Important!
+            pauseNode?.position = CGPoint(x: frame.midX, y: frame.midY)
             pauseNode?.zPosition = 100
             addChild(pauseNode!)
         }
@@ -1152,6 +1116,23 @@ class GameScene: SKScene {
         pauseNode?.removeFromParent()
         pauseNode = nil
         isPaused = false
+    }
+    
+    func showGameOver() {
+        if gameOverNode == nil {
+            gameOverNode = GameOverNode(score: score, level: level)
+            gameOverNode?.position = CGPoint(x: frame.midX, y: frame.midY)
+            gameOverNode?.zPosition = 100
+            addChild(gameOverNode!)
+//            childNode(withName: "backgroundMusic")?.removeFromParent()
+        }
+    }
+
+
+    func hideGameOver() {
+        gameOverNode?.removeFromParent()
+        gameOverNode = nil
+        isGameOver = false
     }
 }
 
