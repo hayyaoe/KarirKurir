@@ -853,6 +853,15 @@ class GameScene: SKScene {
                 }
                 return
             }
+            
+            //
+            if node.name == "quitButton" || node.parent?.name == "quitButton" {
+                playSoundIfEnabled(named: "select.wav", on: self)
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                    self.goToTitleScene()
+                }
+                return
+            }
         }
     }
 
@@ -1124,7 +1133,6 @@ class GameScene: SKScene {
             gameOverNode?.position = CGPoint(x: frame.midX, y: frame.midY)
             gameOverNode?.zPosition = 100
             addChild(gameOverNode!)
-//            childNode(withName: "backgroundMusic")?.removeFromParent()
         }
     }
 
@@ -1133,6 +1141,15 @@ class GameScene: SKScene {
         gameOverNode?.removeFromParent()
         gameOverNode = nil
         isGameOver = false
+    }
+    
+    func goToTitleScene() {
+        if let view = self.view {
+            let transition = SKTransition.fade(withDuration: 0.5)
+            let mainMenuScene = TitleScene(size: CGSize(width: UIScreen.main.bounds.width, height: UIScreen.main.bounds.height))
+            mainMenuScene.scaleMode = .aspectFill
+            view.presentScene(mainMenuScene, transition: transition)
+        }
     }
 }
 
