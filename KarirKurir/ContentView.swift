@@ -10,12 +10,11 @@ import SwiftUI
 
 struct ContentView: View {
     var scene: SKScene {
-        let scene = GameScene()
+        let scene = TitleScene(size: CGSize(width: UIScreen.main.bounds.width, height: UIScreen.main.bounds.height))
         
         let screenBounds = UIScreen.main.bounds
         let screenSize = CGSize(width: screenBounds.width, height: screenBounds.height)
         scene.size = screenSize
-        scene.scaleMode = .resizeFill
         return scene
     }
 
