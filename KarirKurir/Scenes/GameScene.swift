@@ -359,6 +359,16 @@ class GameScene: SKScene {
         healthSprite.zPosition = 100
         healthSprite.position = CGPoint(x: margin + 418, y: size.height - 42)
         healthSprite.setScale(0.2)
+        if !gameStarted {
+            scoreLabel.zPosition = 1001
+            healthLabel.zPosition = 1001
+            levelLabel.zPosition = 1001
+        } else {
+            scoreLabel.zPosition = 10
+            healthLabel.zPosition = 10
+            levelLabel.zPosition = 10
+        }
+    
         
         addChild(healthSprite)
         addChild(scoreLabel)
