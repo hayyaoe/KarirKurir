@@ -54,9 +54,9 @@ class GameScene: SKScene {
     var playerAtSideOfWagon: WagonObstacle?
     var playerBlockedBySide: Bool = false
     var playerFollowingWagon: Bool = false // New state for following behavior
-
     
-
+    
+    
     // MARK: - UI
     
     var scoreLabel: SKLabelNode!
@@ -73,18 +73,19 @@ class GameScene: SKScene {
     // MARK: - Maze dimensions
     let mazeWidth: Int = 20
     let mazeHeight: Int = 11
-
+    
     
     // MARK: - Level Configuration
     
     func getPlayerSpeedFactor() -> Double {
-        if level <= 5 {
-            return 0.5 // 4x slower
-        } else if level <= 10 {
-            return 0.75  // 2x slower
-        } else {
-            return 1.0  // Normal speed
-        }
+        let baseSpeed = 0.6
+        let calculatedSpeed = baseSpeed + (Double(level) * 0.01)
+        
+        // Set a maximum speed, for example, 2.5
+        let maxSpeed = 1.1
+        
+        // Return the calculated speed, but not more than the max speed
+        return min(calculatedSpeed, maxSpeed)
     }
     
     func getItemCount() -> Int {
@@ -371,196 +372,196 @@ class GameScene: SKScene {
     }
     
     func setupMaze(maze: [[Int]]) {
-            walls.forEach { $0.removeFromParent() }
-            items.forEach { $0.removeFromParent() }
-            pathTiles.forEach { $0.removeFromParent() }
-            holes.forEach { $0.removeFromParent() }
-            cats.forEach { $0.removeFromParent() }
-            wagons.forEach { $0.removeFromParent() }
-            hearts.forEach { $0.removeFromParent() } // Add heart cleanup
-            
-            walls.removeAll()
-            items.removeAll()
-            pathTiles.removeAll()
-            holes.removeAll()
-            cats.removeAll()
-            wagons.removeAll()
-            hearts.removeAll() // Add heart cleanup
-            
-            let wallColor = [UIColor.blue, .purple, .red, .green, .orange, .cyan][(level - 1) % 6]
-            
-            // Center the maze on screen
-            let mazePixelWidth = CGFloat(mazeWidth) * gridSize
-            let mazePixelHeight = CGFloat(mazeHeight) * gridSize
-            let offsetX = (size.width - mazePixelWidth) / 2
-            let offsetY = (size.height - mazePixelHeight) / 2
-            
-            determineItemPositions(maze: maze)
-            
-            // Determine heart position if this is a heart level
-            if shouldSpawnHeart() {
-                determineHeartPosition(maze: maze)
-            }
-            
-            for (row, rowData) in maze.enumerated() {
-                for (col, cell) in rowData.enumerated() {
-                    let position = CGPoint(
-                        x: offsetX + CGFloat(col) * gridSize + gridSize/2,
-                        y: offsetY + CGFloat(maze.count - row - 1) * gridSize + gridSize/2
-                    )
+        walls.forEach { $0.removeFromParent() }
+        items.forEach { $0.removeFromParent() }
+        pathTiles.forEach { $0.removeFromParent() }
+        holes.forEach { $0.removeFromParent() }
+        cats.forEach { $0.removeFromParent() }
+        wagons.forEach { $0.removeFromParent() }
+        hearts.forEach { $0.removeFromParent() } // Add heart cleanup
+        
+        walls.removeAll()
+        items.removeAll()
+        pathTiles.removeAll()
+        holes.removeAll()
+        cats.removeAll()
+        wagons.removeAll()
+        hearts.removeAll() // Add heart cleanup
+        
+        let wallColor = [UIColor.blue, .purple, .red, .green, .orange, .cyan][(level - 1) % 6]
+        
+        // Center the maze on screen
+        let mazePixelWidth = CGFloat(mazeWidth) * gridSize
+        let mazePixelHeight = CGFloat(mazeHeight) * gridSize
+        let offsetX = (size.width - mazePixelWidth) / 2
+        let offsetY = (size.height - mazePixelHeight) / 2
+        
+        determineItemPositions(maze: maze)
+        
+        // Determine heart position if this is a heart level
+        if shouldSpawnHeart() {
+            determineHeartPosition(maze: maze)
+        }
+        
+        for (row, rowData) in maze.enumerated() {
+            for (col, cell) in rowData.enumerated() {
+                let position = CGPoint(
+                    x: offsetX + CGFloat(col) * gridSize + gridSize/2,
+                    y: offsetY + CGFloat(maze.count - row - 1) * gridSize + gridSize/2
+                )
+                
+                if cell == 1 {
+                    let isOverDestination = itemGridPositions.contains { $0.row == row && $0.col == col }
                     
-                    if cell == 1 {
-                        let isOverDestination = itemGridPositions.contains { $0.row == row && $0.col == col }
-                        
-                        let textureName: String
-                        if isOverDestination {
-                            textureName = randomHouseAsset() // Use house textures for walls with items
-                        } else {
-                            textureName = randomWallAsset()
-                        }
-                        
-                        let wallTexture = SKTexture(imageNamed: textureName)
-                        let wall = SKSpriteNode(texture: wallTexture, size: CGSize(width: gridSize, height: gridSize))
-                        wall.position = position
-                        
-                        // Fix black background issue for house textures
-                        if isOverDestination {
-                            wall.colorBlendFactor = 0.0
-                            wall.color = .clear
-                            wall.blendMode = .alpha
-                        }
-                        
-                        wall.physicsBody = SKPhysicsBody(rectangleOf: wall.size)
-                        wall.physicsBody?.categoryBitMask = 2
-                        wall.physicsBody?.isDynamic = false
-                        walls.append(wall)
-                        addChild(wall)
+                    let textureName: String
+                    if isOverDestination {
+                        textureName = randomHouseAsset() // Use house textures for walls with items
+                    } else {
+                        textureName = randomWallAsset()
                     }
+                    
+                    let wallTexture = SKTexture(imageNamed: textureName)
+                    let wall = SKSpriteNode(texture: wallTexture, size: CGSize(width: gridSize, height: gridSize))
+                    wall.position = position
+                    
+                    // Fix black background issue for house textures
+                    if isOverDestination {
+                        wall.colorBlendFactor = 0.0
+                        wall.color = .clear
+                        wall.blendMode = .alpha
+                    }
+                    
+                    wall.physicsBody = SKPhysicsBody(rectangleOf: wall.size)
+                    wall.physicsBody?.categoryBitMask = 2
+                    wall.physicsBody?.isDynamic = false
+                    walls.append(wall)
+                    addChild(wall)
                 }
             }
-            setupPathTiles(maze: maze, offsetX: offsetX, offsetY: offsetY)
-            
-            // Add holes based on level
-            if shouldHaveHoles() {
-                setupHoles(maze: maze, offsetX: offsetX, offsetY: offsetY)
-            }
-            
-            // Setup obstacles after game starts
-            if gameStarted {
-                setupObstacles(maze: maze, offsetX: offsetX, offsetY: offsetY)
-            }
-            
-            nextMaze = getMazeLayout(for: level + 1)
         }
+        setupPathTiles(maze: maze, offsetX: offsetX, offsetY: offsetY)
+        
+        // Add holes based on level
+        if shouldHaveHoles() {
+            setupHoles(maze: maze, offsetX: offsetX, offsetY: offsetY)
+        }
+        
+        // Setup obstacles after game starts
+        if gameStarted {
+            setupObstacles(maze: maze, offsetX: offsetX, offsetY: offsetY)
+        }
+        
+        nextMaze = getMazeLayout(for: level + 1)
+    }
     
     // MARK: - Add heart-related helper methods
-        
+    
     func shouldSpawnHeart() -> Bool {
-            return level % 10 == 0 && level > 0 // Every 10 levels
-        }
+        return level % 10 == 0 && level > 0 // Every 10 levels
+    }
     
     func determineHeartPosition(maze: [[Int]]) {
-            heartGridPosition = nil
-            
-            var availablePathPositions: [CGPoint] = []
-            
-            // Pre-calculate maze offset for hole position calculations
-            let mazePixelWidth = CGFloat(mazeWidth) * gridSize
-            let mazePixelHeight = CGFloat(mazeHeight) * gridSize
-            let offsetX = (size.width - mazePixelWidth) / 2
-            let offsetY = (size.height - mazePixelHeight) / 2
-            
-            // Look for path/road positions (0 = path, 1 = wall)
-            for row in 2..<maze.count - 2 {
-                for col in 2..<maze[row].count - 2 {
-                    guard maze[row][col] == 0 else { continue } // This is a path/road
-                    
-                    // Check if this position is far enough from player starting area (bottom-left)
-                    let isNearStart = row >= maze.count - 4 && col <= 4
-                    guard !isNearStart else { continue }
-                    
-                    // Check if this position is too close to any item
-                    let isTooCloseToItems = itemGridPositions.contains { itemPos in
-                        let deltaRow = abs(itemPos.row - row)
-                        let deltaCol = abs(itemPos.col - col)
-                        return deltaRow <= 2 && deltaCol <= 2
-                    }
-                    guard !isTooCloseToItems else { continue }
-                    
-                    // Check if too close to holes (if any exist)
-                    var isTooCloseToHoles = false
-                    for hole in holes {
-                        let holeWorldX = hole.position.x - offsetX
-                        let holeWorldY = hole.position.y - offsetY
-                        let holeGridX = Int(holeWorldX / gridSize)
-                        let holeGridY = Int(holeWorldY / gridSize)
-                        let holeGridRow = maze.count - holeGridY - 1
-                        
-                        let deltaRow = abs(row - holeGridRow)
-                        let deltaCol = abs(col - holeGridX)
-                        
-                        if deltaRow <= 1 && deltaCol <= 1 {
-                            isTooCloseToHoles = true
-                            break
-                        }
-                    }
-                    guard !isTooCloseToHoles else { continue }
-                    
-                    // Make sure it's not in a dead-end (has multiple path connections)
-                    let adjacentPositions = [
-                        (row - 1, col),
-                        (row + 1, col),
-                        (row, col - 1),
-                        (row, col + 1)
-                    ]
-                    
-                    var pathCount = 0
-                    for (adjRow, adjCol) in adjacentPositions {
-                        let isInBounds = adjRow >= 0 && adjRow < maze.count && adjCol >= 0 && adjCol < maze[adjRow].count
-                        if isInBounds && maze[adjRow][adjCol] == 0 {
-                            pathCount += 1
-                        }
-                    }
-                    
-                    let hasGoodConnectivity = pathCount >= 2
-                    guard hasGoodConnectivity else { continue }
-                    
-                    // All checks passed, add this position
-                    availablePathPositions.append(CGPoint(x: col, y: row))
+        heartGridPosition = nil
+        
+        var availablePathPositions: [CGPoint] = []
+        
+        // Pre-calculate maze offset for hole position calculations
+        let mazePixelWidth = CGFloat(mazeWidth) * gridSize
+        let mazePixelHeight = CGFloat(mazeHeight) * gridSize
+        let offsetX = (size.width - mazePixelWidth) / 2
+        let offsetY = (size.height - mazePixelHeight) / 2
+        
+        // Look for path/road positions (0 = path, 1 = wall)
+        for row in 2..<maze.count - 2 {
+            for col in 2..<maze[row].count - 2 {
+                guard maze[row][col] == 0 else { continue } // This is a path/road
+                
+                // Check if this position is far enough from player starting area (bottom-left)
+                let isNearStart = row >= maze.count - 4 && col <= 4
+                guard !isNearStart else { continue }
+                
+                // Check if this position is too close to any item
+                let isTooCloseToItems = itemGridPositions.contains { itemPos in
+                    let deltaRow = abs(itemPos.row - row)
+                    let deltaCol = abs(itemPos.col - col)
+                    return deltaRow <= 2 && deltaCol <= 2
                 }
-            }
-            
-            if let selectedPosition = availablePathPositions.randomElement() {
-                heartGridPosition = (row: Int(selectedPosition.y), col: Int(selectedPosition.x))
-                print("Heart will spawn on road at row: \(heartGridPosition!.row), col: \(heartGridPosition!.col)")
-            } else {
-                print("No suitable road position found for heart spawn")
+                guard !isTooCloseToItems else { continue }
+                
+                // Check if too close to holes (if any exist)
+                var isTooCloseToHoles = false
+                for hole in holes {
+                    let holeWorldX = hole.position.x - offsetX
+                    let holeWorldY = hole.position.y - offsetY
+                    let holeGridX = Int(holeWorldX / gridSize)
+                    let holeGridY = Int(holeWorldY / gridSize)
+                    let holeGridRow = maze.count - holeGridY - 1
+                    
+                    let deltaRow = abs(row - holeGridRow)
+                    let deltaCol = abs(col - holeGridX)
+                    
+                    if deltaRow <= 1 && deltaCol <= 1 {
+                        isTooCloseToHoles = true
+                        break
+                    }
+                }
+                guard !isTooCloseToHoles else { continue }
+                
+                // Make sure it's not in a dead-end (has multiple path connections)
+                let adjacentPositions = [
+                    (row - 1, col),
+                    (row + 1, col),
+                    (row, col - 1),
+                    (row, col + 1)
+                ]
+                
+                var pathCount = 0
+                for (adjRow, adjCol) in adjacentPositions {
+                    let isInBounds = adjRow >= 0 && adjRow < maze.count && adjCol >= 0 && adjCol < maze[adjRow].count
+                    if isInBounds && maze[adjRow][adjCol] == 0 {
+                        pathCount += 1
+                    }
+                }
+                
+                let hasGoodConnectivity = pathCount >= 2
+                guard hasGoodConnectivity else { continue }
+                
+                // All checks passed, add this position
+                availablePathPositions.append(CGPoint(x: col, y: row))
             }
         }
+        
+        if let selectedPosition = availablePathPositions.randomElement() {
+            heartGridPosition = (row: Int(selectedPosition.y), col: Int(selectedPosition.x))
+            print("Heart will spawn on road at row: \(heartGridPosition!.row), col: \(heartGridPosition!.col)")
+        } else {
+            print("No suitable road position found for heart spawn")
+        }
+    }
     
     func spawnHeart() {
-            guard let heartPos = heartGridPosition, gameStarted else { return }
-            
-            let mazePixelWidth = CGFloat(mazeWidth) * gridSize
-            let mazePixelHeight = CGFloat(mazeHeight) * gridSize
-            let offsetX = (size.width - mazePixelWidth) / 2
-            let offsetY = (size.height - mazePixelHeight) / 2
-            
-            let heartSize = CGSize(width: gridSize * 0.5, height: gridSize * 0.5)
-            let heart = HeartNode(size: heartSize)
-            
-            let heartPosition = CGPoint(
-                x: offsetX + CGFloat(heartPos.col) * gridSize + gridSize/2,
-                y: offsetY + CGFloat(currentMaze.count - heartPos.row - 1) * gridSize + gridSize/2
-            )
-            heart.position = heartPosition
-            heart.zPosition = 11 // Above path tiles but below player
-            
-            addChild(heart)
-            hearts.append(heart)
-            
-            print("Spawned heart on road at level \(level) at position \(heartPosition)")
-        }
+        guard let heartPos = heartGridPosition, gameStarted else { return }
+        
+        let mazePixelWidth = CGFloat(mazeWidth) * gridSize
+        let mazePixelHeight = CGFloat(mazeHeight) * gridSize
+        let offsetX = (size.width - mazePixelWidth) / 2
+        let offsetY = (size.height - mazePixelHeight) / 2
+        
+        let heartSize = CGSize(width: gridSize * 0.5, height: gridSize * 0.5)
+        let heart = HeartNode(size: heartSize)
+        
+        let heartPosition = CGPoint(
+            x: offsetX + CGFloat(heartPos.col) * gridSize + gridSize/2,
+            y: offsetY + CGFloat(currentMaze.count - heartPos.row - 1) * gridSize + gridSize/2
+        )
+        heart.position = heartPosition
+        heart.zPosition = 11 // Above path tiles but below player
+        
+        addChild(heart)
+        hearts.append(heart)
+        
+        print("Spawned heart on road at level \(level) at position \(heartPosition)")
+    }
     
     func determineItemPositions(maze: [[Int]]) {
         itemGridPositions.removeAll()
@@ -604,140 +605,140 @@ class GameScene: SKScene {
     }
     
     func spawnItems() {
-            guard gameStarted else { return }
+        guard gameStarted else { return }
+        
+        let mazePixelWidth = CGFloat(mazeWidth) * gridSize
+        let mazePixelHeight = CGFloat(mazeHeight) * gridSize
+        let offsetX = (size.width - mazePixelWidth) / 2
+        let offsetY = (size.height - mazePixelHeight) / 2
+        
+        // Spawn regular items
+        for (row, col) in itemGridPositions {
+            let randomTime = Int.random(in: 16...25)
+            let itemSize = CGSize(width: gridSize * 0.6, height: gridSize * 0.6)
+            let item = ItemNode(size: itemSize, initialTime: randomTime)
             
-            let mazePixelWidth = CGFloat(mazeWidth) * gridSize
-            let mazePixelHeight = CGFloat(mazeHeight) * gridSize
-            let offsetX = (size.width - mazePixelWidth) / 2
-            let offsetY = (size.height - mazePixelHeight) / 2
+            let itemPosition = CGPoint(
+                x: offsetX + CGFloat(col) * gridSize + gridSize/2,
+                y: offsetY + CGFloat(currentMaze.count - row - 1) * gridSize + gridSize/2
+            )
+            item.position = itemPosition
+            item.zPosition = 15
             
-            // Spawn regular items
-            for (row, col) in itemGridPositions {
-                let randomTime = Int.random(in: 16...25)
-                let itemSize = CGSize(width: gridSize * 0.6, height: gridSize * 0.6)
-                let item = ItemNode(size: itemSize, initialTime: randomTime)
-                
-                let itemPosition = CGPoint(
-                    x: offsetX + CGFloat(col) * gridSize + gridSize/2,
-                    y: offsetY + CGFloat(currentMaze.count - row - 1) * gridSize + gridSize/2
-                )
-                item.position = itemPosition
-                item.zPosition = 15
-                
-                item.physicsBody?.categoryBitMask = ItemNode.categoryBitMask
-                item.physicsBody?.contactTestBitMask = PlayerNode.category
-                item.physicsBody?.collisionBitMask = 0
-                
-                item.onTimerExpired = { [weak self, weak item] in
-                    guard let self = self, let item = item, !self.isTransitioning, !self.isGameOver else { return }
-                    if let index = self.items.firstIndex(of: item) {
-                        self.items.remove(at: index)
-                    }
-                    item.removeFromParent()
-                    self.expiredItems += 1
-                    
-                    print("Item expired, \(self.items.count) items remaining, \(self.expiredItems) expired")
-                    
-                    if self.items.isEmpty && !self.isTransitioning {
-                        self.checkLevelCompletion()
-                    }
+            item.physicsBody?.categoryBitMask = ItemNode.categoryBitMask
+            item.physicsBody?.contactTestBitMask = PlayerNode.category
+            item.physicsBody?.collisionBitMask = 0
+            
+            item.onTimerExpired = { [weak self, weak item] in
+                guard let self = self, let item = item, !self.isTransitioning, !self.isGameOver else { return }
+                if let index = self.items.firstIndex(of: item) {
+                    self.items.remove(at: index)
                 }
+                item.removeFromParent()
+                self.expiredItems += 1
                 
-                addChild(item)
-                items.append(item)
+                print("Item expired, \(self.items.count) items remaining, \(self.expiredItems) expired")
+                
+                if self.items.isEmpty && !self.isTransitioning {
+                    self.checkLevelCompletion()
+                }
             }
             
-            // Spawn heart if this is a heart level
-            if shouldSpawnHeart() {
-                spawnHeart()
-            }
-            
-            // Also spawn obstacles
-            setupObstacles(maze: currentMaze,
-                          offsetX: offsetX,
-                          offsetY: offsetY)
-            
-            print("Spawned \(items.count) items and \(hearts.count) hearts after game started")
+            addChild(item)
+            items.append(item)
         }
+        
+        // Spawn heart if this is a heart level
+        if shouldSpawnHeart() {
+            spawnHeart()
+        }
+        
+        // Also spawn obstacles
+        setupObstacles(maze: currentMaze,
+                       offsetX: offsetX,
+                       offsetY: offsetY)
+        
+        print("Spawned \(items.count) items and \(hearts.count) hearts after game started")
+    }
     
     // MARK: - Add heart collection method
-        
+    
     func collectHeart(_ heart: HeartNode) {
-            guard let index = hearts.firstIndex(of: heart) else { return }
+        guard let index = hearts.firstIndex(of: heart) else { return }
+        
+        // Remove heart from array and scene
+        hearts.remove(at: index)
+        heart.removeFromParent()
+        
+        // Create collection effect
+        let collectEffect = SKShapeNode(circleOfRadius: gridSize * 0.5)
+        collectEffect.strokeColor = .systemRed
+        collectEffect.lineWidth = 3
+        collectEffect.fillColor = .clear
+        collectEffect.position = heart.position
+        collectEffect.zPosition = 20
+        addChild(collectEffect)
+        
+        let expandAction = SKAction.scale(to: 2.0, duration: 0.3)
+        let fadeAction = SKAction.fadeOut(withDuration: 0.3)
+        let removeEffect = SKAction.removeFromParent()
+        let effectSequence = SKAction.sequence([SKAction.group([expandAction, fadeAction]), removeEffect])
+        collectEffect.run(effectSequence)
+        
+        // Check if player has max health
+        if health >= maxHealth {
+            // Give score instead - twice the green category points
+            let greenCategoryPoints = ItemCategory.green.points
+            let bonusScore = greenCategoryPoints * 2 * 10 * level // Same formula as items but double green points
+            score += bonusScore
+            scoreLabel.text = "Score: \(score)"
             
-            // Remove heart from array and scene
-            hearts.remove(at: index)
-            heart.removeFromParent()
+            // Show bonus score message
+            let label = SKLabelNode(fontNamed: "Arial-BoldMT")
+            label.text = "+\(bonusScore) (Max Hearts!)"
+            label.fontSize = 20
+            label.fontColor = .systemYellow
+            label.position = CGPoint(x: heart.position.x, y: heart.position.y + 40)
+            addChild(label)
             
-            // Create collection effect
-            let collectEffect = SKShapeNode(circleOfRadius: gridSize * 0.5)
-            collectEffect.strokeColor = .systemRed
-            collectEffect.lineWidth = 3
-            collectEffect.fillColor = .clear
-            collectEffect.position = heart.position
-            collectEffect.zPosition = 20
-            addChild(collectEffect)
+            let moveUp = SKAction.moveBy(x: 0, y: 30, duration: 0.8)
+            let fadeOut = SKAction.fadeOut(withDuration: 0.8)
+            let remove = SKAction.removeFromParent()
+            let sequence = SKAction.sequence([SKAction.group([moveUp, fadeOut]), remove])
+            label.run(sequence)
             
-            let expandAction = SKAction.scale(to: 2.0, duration: 0.3)
-            let fadeAction = SKAction.fadeOut(withDuration: 0.3)
-            let removeEffect = SKAction.removeFromParent()
-            let effectSequence = SKAction.sequence([SKAction.group([expandAction, fadeAction]), removeEffect])
-            collectEffect.run(effectSequence)
+            print("Player at max health, gave \(bonusScore) points instead")
             
-            // Check if player has max health
-            if health >= maxHealth {
-                // Give score instead - twice the green category points
-                let greenCategoryPoints = ItemCategory.green.points
-                let bonusScore = greenCategoryPoints * 2 * 10 * level // Same formula as items but double green points
-                score += bonusScore
-                scoreLabel.text = "Score: \(score)"
-                
-                // Show bonus score message
-                let label = SKLabelNode(fontNamed: "Arial-BoldMT")
-                label.text = "+\(bonusScore) (Max Hearts!)"
-                label.fontSize = 20
-                label.fontColor = .systemYellow
-                label.position = CGPoint(x: heart.position.x, y: heart.position.y + 40)
-                addChild(label)
-                
-                let moveUp = SKAction.moveBy(x: 0, y: 30, duration: 0.8)
-                let fadeOut = SKAction.fadeOut(withDuration: 0.8)
-                let remove = SKAction.removeFromParent()
-                let sequence = SKAction.sequence([SKAction.group([moveUp, fadeOut]), remove])
-                label.run(sequence)
-                
-                print("Player at max health, gave \(bonusScore) points instead")
-                
-            } else {
-                // Increase health
-                health += 1
-                healthLabel.text = "❤️ \(health)"
-                
-                // Show health gain message
-                let label = SKLabelNode(fontNamed: "Arial-BoldMT")
-                label.text = "+1 Life! ❤️"
-                label.fontSize = 22
-                label.fontColor = .systemRed
-                label.position = CGPoint(x: heart.position.x, y: heart.position.y + 40)
-                addChild(label)
-                
-                // Animate the health gain message
-                let scaleUp = SKAction.scale(to: 1.2, duration: 0.2)
-                let scaleDown = SKAction.scale(to: 1.0, duration: 0.2)
-                let moveUp = SKAction.moveBy(x: 0, y: 30, duration: 0.8)
-                let fadeOut = SKAction.fadeOut(withDuration: 0.8)
-                let remove = SKAction.removeFromParent()
-                let sequence = SKAction.sequence([
-                    SKAction.group([scaleUp, moveUp]),
-                    scaleDown,
-                    SKAction.group([fadeOut]),
-                    remove
-                ])
-                label.run(sequence)
-                
-                print("Health increased to \(health)")
-            }
+        } else {
+            // Increase health
+            health += 1
+            healthLabel.text = "❤️ \(health)"
+            
+            // Show health gain message
+            let label = SKLabelNode(fontNamed: "Arial-BoldMT")
+            label.text = "+1 Life! ❤️"
+            label.fontSize = 22
+            label.fontColor = .systemRed
+            label.position = CGPoint(x: heart.position.x, y: heart.position.y + 40)
+            addChild(label)
+            
+            // Animate the health gain message
+            let scaleUp = SKAction.scale(to: 1.2, duration: 0.2)
+            let scaleDown = SKAction.scale(to: 1.0, duration: 0.2)
+            let moveUp = SKAction.moveBy(x: 0, y: 30, duration: 0.8)
+            let fadeOut = SKAction.fadeOut(withDuration: 0.8)
+            let remove = SKAction.removeFromParent()
+            let sequence = SKAction.sequence([
+                SKAction.group([scaleUp, moveUp]),
+                scaleDown,
+                SKAction.group([fadeOut]),
+                remove
+            ])
+            label.run(sequence)
+            
+            print("Health increased to \(health)")
         }
+    }
     
     func setupObstacles(maze: [[Int]], offsetX: CGFloat, offsetY: CGFloat) {
         let mazeOffset = CGPoint(x: offsetX, y: offsetY)
@@ -834,9 +835,8 @@ class GameScene: SKScene {
     func handleWagonInteraction(_ wagon: WagonObstacle, _ interactionType: WagonObstacle.PlayerInteractionType) {
         switch interactionType {
         case .playerInFront:
-            // Player in front - both stop completely
+            // Player in front - wagon stops, player can still change direction
             if playerInFrontOfWagon != wagon {
-                // Clear other interactions first
                 clearOtherWagonInteractions(except: wagon)
                 
                 playerInFrontOfWagon = wagon
@@ -846,71 +846,90 @@ class GameScene: SKScene {
                 playerFollowingWagon = false
                 
                 wagon.setBlocked(true, reason: "Player in front")
-                print("Player in front of wagon - both stopped")
+                print("Player in front of wagon - wagon stopped, player can change direction")
             }
             
         case .playerBehind:
-            // Player behind - wagon tries to move away from player
+            // Player behind - wagon NEVER stops, continues moving and avoids player direction
             if playerBehindWagon != wagon {
-                // Clear other interactions first
                 clearOtherWagonInteractions(except: wagon)
                 
                 playerBehindWagon = wagon
                 playerInFrontOfWagon = nil
                 playerAtSideOfWagon = nil
                 playerBlockedBySide = false
-                playerFollowingWagon = false
+                playerFollowingWagon = true
                 
-                // Make wagon try to escape from player
-                makeWagonEscapeFromPlayer(wagon, playerPosition: .behind)
-                print("Player behind wagon - wagon trying to escape")
+                // CRITICAL: Wagon must NEVER be blocked when player is behind
+                // Ensure wagon continues moving normally
+                wagon.setBlocked(false, reason: "Player behind - wagon must continue moving")
+                wagon.resumeNormalMovement()
+                
+                print("Player behind wagon - wagon continues moving freely, player will follow")
+            }
+            
+            // Double-check: if wagon was previously blocked, unblock it immediately
+            if wagon.isCurrentlyBlocked() {
+                wagon.setBlocked(false, reason: "Player behind - force unblock wagon")
+                print("Forced wagon unblock - player is behind")
             }
             
         case .playerAtSide:
-            // Player at side - wagon tries to move away from player
+            // Player at side - only temporary stop when directly hitting wagon
             if playerAtSideOfWagon != wagon {
-                // Clear other interactions first
                 clearOtherWagonInteractions(except: wagon)
                 
                 playerAtSideOfWagon = wagon
                 playerInFrontOfWagon = nil
                 playerBehindWagon = nil
-                playerBlockedBySide = true
+                playerBlockedBySide = false // Player can move freely
                 playerFollowingWagon = false
                 
-                // Make wagon try to escape from player
+                // Wagon tries to escape, but player is not heavily restricted
                 makeWagonEscapeFromPlayer(wagon, playerPosition: .side)
-                print("Player at side of wagon - wagon trying to escape")
+                print("Player at side of wagon - temporary interaction")
             }
             
         case .playerClear:
             // Player clear - normal movement
+            var clearedInteraction = false
+            
             if playerInFrontOfWagon == wagon {
                 playerInFrontOfWagon = nil
                 wagon.setBlocked(false, reason: "Player moved away from front")
                 wagon.resumeNormalMovement()
-                print("Player no longer in front of wagon - wagon can move normally")
+                clearedInteraction = true
+                print("Player no longer in front of wagon")
             }
+            
             if playerBehindWagon == wagon {
                 playerBehindWagon = nil
                 playerFollowingWagon = false
                 wagon.resumeNormalMovement()
-                print("Player no longer behind wagon - wagon resuming normal movement")
+                clearedInteraction = true
+                print("Player no longer behind wagon")
             }
+            
             if playerAtSideOfWagon == wagon {
                 playerAtSideOfWagon = nil
                 playerBlockedBySide = false
                 wagon.resumeNormalMovement()
-                print("Player no longer at side of wagon - wagon resuming normal movement")
+                clearedInteraction = true
+                print("Player no longer at side of wagon")
+            }
+            
+            if clearedInteraction {
+                print("Wagon interaction cleared - normal movement resumed")
             }
         }
     }
-
+    
     private func makeWagonEscapeFromPlayer(_ wagon: WagonObstacle, playerPosition: PlayerRelativePosition) {
         let wagonGridPos = wagon.getGridPosition()
         let playerGridPos = worldToGridPosition(player.position)
         
-        // Find available escape directions
+        // For side interactions, wagon only needs to move if directly blocked
+        // Less aggressive escape behavior since player has more freedom
         let escapeDirections = findEscapeDirections(
             from: wagonGridPos,
             avoiding: playerGridPos,
@@ -919,53 +938,48 @@ class GameScene: SKScene {
         )
         
         if escapeDirections.isEmpty {
-            // No escape routes - wagon must stop
-            wagon.setBlocked(true, reason: "Trapped by player - no escape routes")
-            print("Wagon trapped by player - stopping")
+            // No immediate escape needed - wagon can continue normal movement
+            wagon.setBlocked(false, reason: "No escape needed - continuing normal movement")
+            wagon.resumeNormalMovement()
+            print("Wagon continuing normal movement - player has freedom to move")
         } else {
-            // Set wagon to escape mode with preferred directions
+            // Gentle escape - wagon prefers escape directions but isn't forced
             wagon.setEscapeMode(escapeDirections: escapeDirections)
-            print("Wagon escaping - available directions: \(escapeDirections.map { $0.description })")
+            print("Wagon gently adjusting path - escape directions: \(escapeDirections.map { $0.description })")
         }
     }
+
     
     // Helper method to find escape directions for wagon
     private func findEscapeDirections(from wagonPos: CGPoint, avoiding playerPos: CGPoint, currentDirection: MoveDirection, playerPosition: PlayerRelativePosition) -> [MoveDirection] {
         let allDirections: [MoveDirection] = [.up, .down, .left, .right]
         var escapeDirections: [MoveDirection] = []
+        var secondaryDirections: [MoveDirection] = []
         
         for direction in allDirections {
             let nextPos = getNextPosition(from: wagonPos, direction: direction)
             
             // Check if this direction is valid (not wall, within bounds)
             if isValidRoadPosition(nextPos) {
-                // Check if this direction moves away from player
                 let currentDistanceToPlayer = hypot(wagonPos.x - playerPos.x, wagonPos.y - playerPos.y)
                 let futureDistanceToPlayer = hypot(nextPos.x - playerPos.x, nextPos.y - playerPos.y)
                 
-                // For behind position, prioritize forward movement (away from player)
-                if playerPosition == .behind {
-                    if direction == currentDirection {
-                        // Moving forward (current direction) is highest priority
-                        escapeDirections.insert(direction, at: 0)
-                    } else if futureDistanceToPlayer > currentDistanceToPlayer {
-                        // Any direction that increases distance from player
-                        escapeDirections.append(direction)
-                    }
-                }
-                // For side position, any direction that increases distance is good
-                else if playerPosition == .side {
-                    if futureDistanceToPlayer > currentDistanceToPlayer {
-                        escapeDirections.append(direction)
-                    }
-                    // Also allow perpendicular movement
-                    else if abs(futureDistanceToPlayer - currentDistanceToPlayer) < 0.5 {
-                        escapeDirections.append(direction)
-                    }
+                // For side interactions, be less aggressive - any direction that doesn't get closer is fine
+                if futureDistanceToPlayer >= currentDistanceToPlayer - 0.3 {
+                    escapeDirections.append(direction)
+                } else {
+                    // Still allow directions that get slightly closer as backup
+                    secondaryDirections.append(direction)
                 }
             }
         }
         
+        // If no good escape directions, use any available direction
+        if escapeDirections.isEmpty {
+            escapeDirections = secondaryDirections
+        }
+        
+        // For side interactions, don't force specific movement patterns
         return escapeDirections
     }
     
@@ -1008,28 +1022,27 @@ class GameScene: SKScene {
         // Remove any existing collision check
         removeAction(forKey: "wagonCollisionCheck")
         
-        // Start continuous collision checking - moderate frequency to avoid glitches
+        // Start continuous collision checking with slightly less frequent updates for stability
         let checkAction = SKAction.repeatForever(.sequence([
             .run { [weak self] in self?.checkAllWagonCollisions() },
-            .wait(forDuration: 0.1) // Check every 0.1 seconds - stable frequency
+            .wait(forDuration: 0.15) // Slightly longer interval for more stability
         ]))
         run(checkAction, withKey: "wagonCollisionCheck")
     }
-
+    
     func stopContinuousWagonCollisionCheck() {
         removeAction(forKey: "wagonCollisionCheck")
     }
-
+    
     private func checkAllWagonCollisions() {
         guard gameStarted && !isTransitioning && !isGameOver && !isMoving else { return }
         
-        // Only check when player is not moving to avoid glitches
         var anyInteractionFound = false
         
         for wagon in wagons {
             let interactionType = checkIndividualWagonCollision(wagon)
             if interactionType != .playerClear {
-                // Only handle interaction if it's not already set
+                // Only handle interaction if it's different from current state
                 if !isInteractionAlreadySet(wagon, interactionType) {
                     handleWagonInteraction(wagon, interactionType)
                 }
@@ -1037,11 +1050,15 @@ class GameScene: SKScene {
             }
         }
         
-        // Clear interactions that are no longer active
+        // Clear interactions that are no longer active, but only after a short delay
+        // to prevent flickering between states
         if !anyInteractionFound {
-            clearStaleWagonInteractions()
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak self] in
+                self?.clearStaleWagonInteractions()
+            }
         }
     }
+
     
     private func isInteractionAlreadySet(_ wagon: WagonObstacle, _ type: WagonObstacle.PlayerInteractionType) -> Bool {
         switch type {
@@ -1059,6 +1076,7 @@ class GameScene: SKScene {
     private func clearStaleWagonInteractions() {
         var clearedAny = false
         
+        // Check each active interaction to see if it's still valid
         if let wagon = playerInFrontOfWagon {
             let currentInteraction = checkIndividualWagonCollision(wagon)
             if currentInteraction == .playerClear {
@@ -1087,52 +1105,100 @@ class GameScene: SKScene {
             print("Cleared stale wagon interactions")
         }
     }
+
     
     private func checkIndividualWagonCollision(_ wagon: WagonObstacle) -> WagonObstacle.PlayerInteractionType {
         let playerGridPos = worldToGridPosition(player.position)
         let wagonGridPos = wagon.getGridPosition()
         
-        // Calculate the difference between player and wagon positions
+        // FIXED: Calculate the difference correctly (player position - wagon position)
         let deltaX = playerGridPos.x - wagonGridPos.x
         let deltaY = playerGridPos.y - wagonGridPos.y
         
-        // Check if player is adjacent to wagon (distance of 1 in grid) or on same position
+        // Debug output to help diagnose
+        print("DEBUG: Player grid pos: (\(playerGridPos.x), \(playerGridPos.y))")
+        print("DEBUG: Wagon grid pos: (\(wagonGridPos.x), \(wagonGridPos.y))")
+        print("DEBUG: Delta (player - wagon): (\(deltaX), \(deltaY))")
+        
+        // Check if player is adjacent to wagon or on same position
         let isAdjacent = (abs(deltaX) == 1 && deltaY == 0) || (deltaX == 0 && abs(deltaY) == 1)
         let isOnSamePosition = deltaX == 0 && deltaY == 0
+        let distance = hypot(deltaX, deltaY)
         
-        if isOnSamePosition || isAdjacent {
+        print("DEBUG: Is adjacent: \(isAdjacent), same position: \(isOnSamePosition), distance: \(distance)")
+        
+        if isOnSamePosition || isAdjacent || distance <= 1.5 {
             // Determine the relative position based on wagon's current direction
             let interactionType = determineWagonInteractionType(deltaX: deltaX, deltaY: deltaY, wagon: wagon)
+            print("DEBUG: Interaction type determined: \(interactionType)")
             return interactionType
         } else {
-            // Player is not near this wagon
+            print("DEBUG: Player too far from wagon")
             return .playerClear
         }
     }
     
+    private func debugCoordinateConversion() {
+        if let playerPos = player?.position,
+           let wagon = wagons.first {
+            let playerGrid = worldToGridPosition(playerPos)
+            let wagonGrid = wagon.getGridPosition()
+            
+            print("DEBUG COORDINATES:")
+            print("Player world: (\(playerPos.x), \(playerPos.y)) -> grid: (\(playerGrid.x), \(playerGrid.y))")
+            print("Wagon world: (\(wagon.position.x), \(wagon.position.y)) -> grid: (\(wagonGrid.x), \(wagonGrid.y))")
+            print("Wagon direction: \(wagon.getCurrentDirection().description)")
+        }
+    }
+    
     private func determineWagonInteractionType(deltaX: CGFloat, deltaY: CGFloat, wagon: WagonObstacle) -> WagonObstacle.PlayerInteractionType {
-        // Get the direction vector of the wagon
         let directionVector = wagon.getCurrentDirection().vector
         
-        // Check if player is in front of wagon (in the direction wagon is moving)
-        if deltaX == directionVector.dx && deltaY == directionVector.dy {
-            return .playerInFront
-        }
+        // FIXED: More precise detection with correct coordinate system
+        let threshold: CGFloat = 0.8
         
-        // Check if player is behind wagon (opposite to direction wagon is moving)
-        if deltaX == -directionVector.dx && deltaY == -directionVector.dy {
+        // Calculate where "in front" and "behind" positions would be relative to wagon
+        let frontX = directionVector.dx
+        let frontY = directionVector.dy
+        let behindX = -directionVector.dx
+        let behindY = -directionVector.dy
+        
+        // Debug output to help diagnose the issue
+        print("DEBUG: Wagon direction: \(wagon.getCurrentDirection().description)")
+        print("DEBUG: Direction vector: dx=\(directionVector.dx), dy=\(directionVector.dy)")
+        print("DEBUG: Player delta from wagon: dx=\(deltaX), dy=\(deltaY)")
+        print("DEBUG: Front position would be: dx=\(frontX), dy=\(frontY)")
+        print("DEBUG: Behind position would be: dx=\(behindX), dy=\(behindY)")
+        
+        // Check if player is behind wagon (more lenient detection)
+        let behindDistance = hypot(deltaX - behindX, deltaY - behindY)
+        if behindDistance < threshold {
+            print("DEBUG: Player detected as BEHIND wagon (distance: \(behindDistance))")
             return .playerBehind
         }
         
-        // Check if player is at the same position as wagon
-        if deltaX == 0 && deltaY == 0 {
-            // Determine based on which side the player approached from
-            // For now, treat same position as front collision (both stop)
+        // Check if player is in front of wagon
+        let frontDistance = hypot(deltaX - frontX, deltaY - frontY)
+        if frontDistance < threshold {
+            print("DEBUG: Player detected as IN FRONT of wagon (distance: \(frontDistance))")
             return .playerInFront
         }
         
+        // Check if player is at the same position as wagon
+        if abs(deltaX) < 0.5 && abs(deltaY) < 0.5 {
+            print("DEBUG: Player at SAME POSITION as wagon")
+            return .playerInFront // Treat as front collision
+        }
+        
         // Player is at the side of wagon
-        return .playerAtSide
+        let overallDistance = hypot(deltaX, deltaY)
+        if overallDistance <= 1.2 {
+            print("DEBUG: Player detected as AT SIDE of wagon (distance: \(overallDistance))")
+            return .playerAtSide
+        }
+        
+        print("DEBUG: Player detected as CLEAR from wagon")
+        return .playerClear
     }
     
     // MARK: - Player Movement
@@ -1154,69 +1220,190 @@ class GameScene: SKScene {
     
     var isMoving = false
     
-//    func updatePlayerMovement() {
-//        guard gameStarted && !isTransitioning && !isGameOver && !isMoving else { return }
-//        
-//        // Process queued direction changes - this makes controls more responsive
-//        if let next = nextDirection, canMove(in: next) {
-//            currentDirection = next
-//            nextDirection = nil
-//            print("Direction changed to: \(currentDirection.description)")
-//        }
-//        
-//        if canMove(in: currentDirection) {
-//            let targetPosition = getTargetPosition(for: currentDirection)
-//            isMoving = true
-//            
-//            let willBeOnHole = holes.contains { hole in
-//                let distance = hypot(targetPosition.x - hole.position.x, targetPosition.y - hole.position.y)
-//                return distance < gridSize * 0.5
-//            }
-//            
-//            let currentTime = CACurrentMediaTime()
-//            let baseSpeed = getPlayerSpeedFactor()
-//            let baseDuration = baseMoveDeuration / baseSpeed
-//            let isUnderHoleSlowdown = currentTime < holeSlowdownEndTime
-//            let moveDuration = (willBeOnHole || isUnderHoleSlowdown) ? baseDuration * 2.0 : baseDuration
-//            
-//            // Use smoother movement with better timing
-//            player.moveWithCustomDuration(to: targetPosition, duration: moveDuration) { [weak self] in
-//                self?.isMoving = false
-//                self?.updateHoleStatus()
-//                self?.checkForItemCollection()
-//            }
-//        }
-//    }
+    //    func updatePlayerMovement() {
+    //        guard gameStarted && !isTransitioning && !isGameOver && !isMoving else { return }
+    //
+    //        // Process queued direction changes - this makes controls more responsive
+    //        if let next = nextDirection, canMove(in: next) {
+    //            currentDirection = next
+    //            nextDirection = nil
+    //            print("Direction changed to: \(currentDirection.description)")
+    //        }
+    //
+    //        if canMove(in: currentDirection) {
+    //            let targetPosition = getTargetPosition(for: currentDirection)
+    //            isMoving = true
+    //
+    //            let willBeOnHole = holes.contains { hole in
+    //                let distance = hypot(targetPosition.x - hole.position.x, targetPosition.y - hole.position.y)
+    //                return distance < gridSize * 0.5
+    //            }
+    //
+    //            let currentTime = CACurrentMediaTime()
+    //            let baseSpeed = getPlayerSpeedFactor()
+    //            let baseDuration = baseMoveDeuration / baseSpeed
+    //            let isUnderHoleSlowdown = currentTime < holeSlowdownEndTime
+    //            let moveDuration = (willBeOnHole || isUnderHoleSlowdown) ? baseDuration * 2.0 : baseDuration
+    //
+    //            // Use smoother movement with better timing
+    //            player.moveWithCustomDuration(to: targetPosition, duration: moveDuration) { [weak self] in
+    //                self?.isMoving = false
+    //                self?.updateHoleStatus()
+    //                self?.checkForItemCollection()
+    //            }
+    //        }
+    //    }
     func updatePlayerMovement() {
         guard gameStarted && !isTransitioning && !isGameOver && !isMoving else { return }
         
-        // Simplified movement logic to avoid glitches
-        // Process queued direction changes - this makes controls more responsive
+        // Handle special case: player behind wagon with stop-and-follow behavior
+        if playerFollowingWagon, let wagon = playerBehindWagon {
+            handleStopAndFollowMovement(wagon)
+            return
+        }
+        
+        // SPECIAL CASE: Player in front of wagon - both stop, no auto movement
+        if playerInFrontOfWagon != nil {
+            // Player in front of wagon - only move if user manually swipes
+            if let next = nextDirection, canMove(in: next) {
+                currentDirection = next
+                nextDirection = nil
+                print("Player in front of wagon - manual direction change to: \(currentDirection.description)")
+                
+                let targetPosition = getTargetPosition(for: currentDirection)
+                movePlayerToPosition(targetPosition)
+            }
+            // NO automatic forward movement when in front of wagon
+            return
+        }
+        
+        // NORMAL: Automatic forward movement for regular gameplay
         if let next = nextDirection, canMove(in: next) {
             currentDirection = next
             nextDirection = nil
             print("Direction changed to: \(currentDirection.description)")
         }
         
+        // Try to move in current direction (automatic forward movement)
         if canMove(in: currentDirection) {
             let targetPosition = getTargetPosition(for: currentDirection)
             movePlayerToPosition(targetPosition)
         }
     }
     
+    func handleStopAndFollowMovement(_ wagon: WagonObstacle) {
+        // Check if player wants to break away from following
+        if let next = nextDirection {
+            let wagonGridPos = wagon.getGridPosition()
+            let playerGridPos = worldToGridPosition(player.position)
+            let wagonDirection = wagon.getCurrentDirection()
+            
+            // SPECIAL CASE: If player wants to turn around (opposite to wagon direction)
+            let wagonOpposite = getOppositeDirection(wagonDirection)
+            if next == wagonOpposite {
+                // Player wants to turn around - check if they can move
+                if canMove(in: next) {
+                    currentDirection = next
+                    nextDirection = nil
+                    playerFollowingWagon = false
+                    print("Player turning around - breaking away from wagon following")
+                    
+                    let targetPosition = getTargetPosition(for: currentDirection)
+                    movePlayerToPosition(targetPosition)
+                    return
+                } else {
+                    // Can't turn around - clear the direction and stay following
+                    nextDirection = nil
+                    print("Player can't turn around - staying behind wagon")
+                    return
+                }
+            }
+            
+            // Regular break away logic for other directions
+            let nextPlayerPos = getGridPositionInDirection(from: playerGridPos, direction: next)
+            let distanceToWagonCurrent = hypot(playerGridPos.x - wagonGridPos.x, playerGridPos.y - wagonGridPos.y)
+            let distanceToWagonNext = hypot(nextPlayerPos.x - wagonGridPos.x, nextPlayerPos.y - wagonGridPos.y)
+            
+            // Allow break away if moving away from or parallel to wagon
+            if distanceToWagonNext >= distanceToWagonCurrent - 0.2 && canMove(in: next) {
+                currentDirection = next
+                nextDirection = nil
+                playerFollowingWagon = false
+                print("Player breaking away from following wagon")
+                
+                let targetPosition = getTargetPosition(for: currentDirection)
+                movePlayerToPosition(targetPosition)
+                return
+            } else {
+                // Can't break away in that direction - clear the queued direction
+                nextDirection = nil
+                print("Can't break away in that direction - staying behind wagon")
+            }
+        }
+        
+        // STOP-AND-FOLLOW LOGIC: Player only moves when wagon moves
+        let wagonDirection = wagon.getCurrentDirection()
+        
+        // Only try to follow if:
+        // 1. Wagon is not blocked (it's actually moving)
+        // 2. Player can move in wagon's direction
+        // 3. Player isn't already moving
+        
+        if !wagon.isCurrentlyBlocked() && !isMoving {
+            if canMove(in: wagonDirection) {
+                // Follow wagon with same timing
+                currentDirection = wagonDirection
+                
+                let targetPosition = getTargetPosition(for: currentDirection)
+                
+                // Move with wagon's exact timing to create synchronized stop-and-follow
+                isMoving = true
+                let moveDuration = 0.8 // Match wagon's move duration exactly
+                
+                player.moveWithCustomDuration(to: targetPosition, duration: moveDuration) { [weak self] in
+                    self?.isMoving = false
+                    self?.updateHoleStatus()
+                    self?.checkForItemCollection()
+                    
+                    // After following, player stops and waits for wagon's next move
+                    print("Player completed follow movement - waiting for wagon's next move")
+                }
+                
+                print("Player following wagon's movement in direction: \(wagonDirection.description)")
+            } else {
+                // Can't follow wagon in its direction - player stays stopped
+                print("Player can't follow wagon - staying stopped until wagon moves to a followable direction")
+            }
+        } else if wagon.isCurrentlyBlocked() {
+            // Wagon is stopped, player should also stay stopped
+            print("Player waiting - wagon is stopped")
+        } else {
+            // Player is currently moving, let the movement complete
+            print("Player currently moving - will check again after movement completes")
+        }
+    }
+
+    
     func handleFollowingWagonMovement(_ wagon: WagonObstacle) {
         let wagonDirection = wagon.getCurrentDirection()
         
         // Check if player wants to change direction away from wagon
-        if let next = nextDirection, next != wagonDirection {
-            if canMove(in: next) {
-                // Player is breaking away from following the wagon
+        if let next = nextDirection {
+            // Allow player to break away if they're not moving toward the wagon
+            let wagonGridPos = wagon.getGridPosition()
+            let playerGridPos = worldToGridPosition(player.position)
+            
+            let nextPlayerPos = getGridPositionInDirection(from: playerGridPos, direction: next)
+            let distanceToWagonCurrent = hypot(playerGridPos.x - wagonGridPos.x, playerGridPos.y - wagonGridPos.y)
+            let distanceToWagonNext = hypot(nextPlayerPos.x - wagonGridPos.x, nextPlayerPos.y - wagonGridPos.y)
+            
+            // Allow break away if not moving closer to wagon
+            if distanceToWagonNext >= distanceToWagonCurrent && canMove(in: next) {
                 currentDirection = next
                 nextDirection = nil
                 playerFollowingWagon = false
                 print("Player breaking away from wagon - direction changed to: \(currentDirection.description)")
                 
-                // Move with normal speed
                 let targetPosition = getTargetPosition(for: currentDirection)
                 movePlayerToPosition(targetPosition)
                 return
@@ -1224,14 +1411,32 @@ class GameScene: SKScene {
         }
         
         // Continue following wagon in wagon's direction
-        currentDirection = wagonDirection
-        nextDirection = nil // Clear any queued direction that can't be executed
-        
-        if canMove(in: currentDirection) {
+        if canMove(in: wagonDirection) {
+            currentDirection = wagonDirection
+            nextDirection = nil // Clear queued direction that can't be executed
+            
             let targetPosition = getTargetPosition(for: currentDirection)
-            // Move at wagon's speed (0.5 seconds)
             movePlayerToPosition(targetPosition)
+            print("Player following wagon in direction: \(wagonDirection.description)")
+        } else {
+            // Can't follow wagon - try to move in any safe direction
+            let safeMoveDirections: [MoveDirection] = [.up, .down, .left, .right]
+            for direction in safeMoveDirections {
+                if canMove(in: direction) {
+                    currentDirection = direction
+                    let targetPosition = getTargetPosition(for: currentDirection)
+                    movePlayerToPosition(targetPosition)
+                    print("Player can't follow wagon, moving in safe direction: \(direction.description)")
+                    break
+                }
+            }
         }
+    }
+    
+    // Helper method to get grid position in a direction
+    private func getGridPositionInDirection(from gridPos: CGPoint, direction: MoveDirection) -> CGPoint {
+        let vector = direction.vector
+        return CGPoint(x: gridPos.x + vector.dx, y: gridPos.y + vector.dy)
     }
     
     // Simplified method to move player
@@ -1270,7 +1475,7 @@ class GameScene: SKScene {
     func updateHoleStatus() {
         let wasOnHole = isOnHole
         let wasUnderSlowdown = CACurrentMediaTime() < holeSlowdownEndTime
-
+        
         isOnHole = false
         
         for hole in holes {
@@ -1305,6 +1510,7 @@ class GameScene: SKScene {
     private func clearOtherWagonInteractions(except excludedWagon: WagonObstacle) {
         for wagon in wagons {
             if wagon != excludedWagon {
+                // Clear each type of interaction if it's with this wagon
                 if playerInFrontOfWagon == wagon {
                     playerInFrontOfWagon = nil
                     wagon.setBlocked(false, reason: "Player moved to different wagon")
@@ -1323,7 +1529,7 @@ class GameScene: SKScene {
             }
         }
     }
-
+    
     func clearAllWagonInteractions() {
         // Clear all interaction states
         playerBehindWagon = nil
@@ -1335,10 +1541,26 @@ class GameScene: SKScene {
         // Unblock all wagons and ensure they can move
         wagons.forEach { wagon in
             wagon.setBlocked(false, reason: "All interactions cleared")
-            wagon.resumeNormalMovement() // Clear any escape modes
+            wagon.resumeNormalMovement()
         }
         
         print("All wagon interactions cleared")
+    }
+
+    
+    private func isPositionWithinBounds(_ position: CGPoint) -> Bool {
+        let mazePixelWidth = CGFloat(mazeWidth) * gridSize
+        let mazePixelHeight = CGFloat(mazeHeight) * gridSize
+        let offsetX = (size.width - mazePixelWidth) / 2
+        let offsetY = (size.height - mazePixelHeight) / 2
+        
+        let mazeMinX = offsetX + gridSize/2
+        let mazeMaxX = offsetX + mazePixelWidth - gridSize/2
+        let mazeMinY = offsetY + gridSize/2
+        let mazeMaxY = offsetY + mazePixelHeight - gridSize/2
+        
+        return position.x >= mazeMinX && position.x <= mazeMaxX &&
+               position.y >= mazeMinY && position.y <= mazeMaxY
     }
     
     // Update the canMove method to handle wagon interactions:
@@ -1354,12 +1576,14 @@ class GameScene: SKScene {
         let offsetX = (size.width - mazePixelWidth) / 2
         let offsetY = (size.height - mazePixelHeight) / 2
         
-        let mazeMinX = offsetX
-        let mazeMaxX = offsetX + mazePixelWidth
-        let mazeMinY = offsetY
-        let mazeMaxY = offsetY + mazePixelHeight
+        let mazeMinX = offsetX + gridSize/2 // Add buffer to prevent going out of bounds
+        let mazeMaxX = offsetX + mazePixelWidth - gridSize/2
+        let mazeMinY = offsetY + gridSize/2
+        let mazeMaxY = offsetY + mazePixelHeight - gridSize/2
         
+        // ENHANCED BOUNDARY CHECK - prevent player from being pushed out of map
         if future.x < mazeMinX || future.x > mazeMaxX || future.y < mazeMinY || future.y > mazeMaxY {
+            print("Movement blocked: would go out of bounds")
             return false
         }
         
@@ -1376,24 +1600,52 @@ class GameScene: SKScene {
             return false
         }
         
-        // Handle wagon interaction restrictions - simplified for better stability
+        // UPDATED WAGON INTERACTION HANDLING - Player in front = both stop completely
         
-        // 1. Player in front of wagon - cannot move towards wagon
+        // 1. Player in front of wagon - both entities stop completely
         if let wagon = playerInFrontOfWagon {
-            return canMoveAwayFromWagon(wagon: wagon, direction: direction, future: future)
+            // Block any movement that would maintain the front collision
+            let wagonPos = wagon.position
+            let distance = hypot(future.x - wagonPos.x, future.y - wagonPos.y)
+            
+            // Only allow movement that significantly increases distance (moving away)
+            let currentDistance = hypot(player.position.x - wagonPos.x, player.position.y - wagonPos.y)
+            
+            if distance >= currentDistance + gridSize * 0.3 {
+                // Moving away from wagon - allow
+                print("Player in front can move \(direction.description) - moving away from wagon")
+                return true
+            } else {
+                // Not moving away enough - block movement
+                print("Movement blocked: player in front of wagon, not moving away enough")
+                return false
+            }
         }
         
-        // 2. Player behind wagon - can move freely (wagon will escape)
+        // 2. Player behind wagon - allow free movement (following is handled separately)
         if playerBehindWagon != nil {
-            return true // Player can move freely, wagon handles escaping
+            // Only check for direct collision
+            if wagons.contains(where: { w in
+                let distance = hypot(future.x - w.position.x, future.y - w.position.y)
+                return distance < gridSize * 0.6 // Slightly smaller collision radius
+            }) {
+                return false
+            }
+            return true
         }
         
-        // 3. Player at side of wagon - can move freely (wagon will escape)
-        if playerAtSideOfWagon != nil {
-            return true // Player can move freely, wagon handles escaping
+        // 3. Player at side of wagon - only block direct collision
+        if let wagon = playerAtSideOfWagon {
+            // Only block if movement would cause direct collision
+            let distance = hypot(future.x - wagon.position.x, future.y - wagon.position.y)
+            if distance < gridSize * 0.7 {
+                print("Movement blocked: direct collision with wagon at side")
+                return false
+            }
+            return true // Allow movement away from wagon
         }
         
-        // Check direct collision with wagons (for new collisions)
+        // 4. Check for new collisions with wagons (general case)
         if wagons.contains(where: { wagon in
             let distance = hypot(future.x - wagon.position.x, future.y - wagon.position.y)
             return distance < gridSize * 0.7
@@ -1403,7 +1655,7 @@ class GameScene: SKScene {
         
         return true
     }
-
+    
     
     // Helper method to check if player can move away from wagon
     // Helper method to check if player can move away from wagon
@@ -1412,41 +1664,37 @@ class GameScene: SKScene {
         let futurePlayerGridPos = worldToGridPosition(future)
         let wagonGridPos = wagon.getGridPosition()
         
-        // Calculate current distance from wagon
+        // Calculate current and future distances from wagon
         let currentDistance = hypot(
             currentPlayerGridPos.x - wagonGridPos.x,
             currentPlayerGridPos.y - wagonGridPos.y
         )
         
-        // Calculate future distance from wagon
         let futureDistance = hypot(
             futurePlayerGridPos.x - wagonGridPos.x,
             futurePlayerGridPos.y - wagonGridPos.y
         )
         
         // Allow movement if it increases distance from wagon (moving away)
-        if futureDistance > currentDistance + 0.1 { // Small tolerance
+        if futureDistance > currentDistance + 0.1 {
             print("Player can move \(direction.description) - moving away from wagon")
             return true
         }
         
-        // Allow movement if it maintains roughly the same distance (parallel movement)
-        if abs(futureDistance - currentDistance) <= 0.2 { // Slightly more tolerance
+        // Allow parallel movement (maintaining distance)
+        if abs(futureDistance - currentDistance) <= 0.3 {
             print("Player can move \(direction.description) - parallel to wagon")
             return true
         }
         
-        // For side collisions, be more permissive - allow movement that doesn't get much closer
-        if playerAtSideOfWagon == wagon {
-            let distanceReduction = currentDistance - futureDistance
-            if distanceReduction < 0.5 { // Allow movement that doesn't get much closer
-                print("Player can move \(direction.description) - side collision with minimal approach")
-                return true
-            }
+        // For side interactions, be more permissive
+        let distanceReduction = currentDistance - futureDistance
+        if distanceReduction < 0.8 { // Allow slight approach
+            print("Player can move \(direction.description) - minimal approach to wagon")
+            return true
         }
         
-        // Don't allow movement that brings player significantly closer to wagon
-        print("Player cannot move \(direction.description) - would move too close to wagon")
+        print("Player cannot move \(direction.description) - would get too close to wagon")
         return false
     }
     
@@ -1537,46 +1785,46 @@ class GameScene: SKScene {
     }
     
     func setupNewLevel() {
-            print("Setting up new level \(level)")
-            
-            // Stop collision checking during transition
-            stopContinuousWagonCollisionCheck()
-            
-            isMoving = false
-            isCollecting = false
-            isOnHole = false
-            holeSlowdownEndTime = 0
-            currentDirection = .right
-            nextDirection = nil
-            collectedItems = 0
-            expiredItems = 0
-            playerFollowingWagon = false
-            heartGridPosition = nil // Clear heart position
-
-            // Clear hole effect for level transition
-            player.hideSlowdownEffect()
-            
-            // Clear all wagon interactions properly
-            clearAllWagonInteractions()
-            
-            currentMaze = nextMaze.isEmpty ? getMazeLayout(for: level) : nextMaze
-            setupMaze(maze: currentMaze)
-            spawnItems() // This will now also spawn hearts if needed
-            findSafeStartingPosition()
-            
-            // Update obstacle references to new maze
-            updateObstacleReferences()
-            
-            run(.sequence([
-                .wait(forDuration: 0.1),
-                .run { [weak self] in
-                    self?.startPlayerMovement() // This will also restart collision checking
-                    self?.isTransitioning = false
-                    print("Level transition complete - input and movement re-enabled")
-                    print("Level \(self?.level ?? 0) stats: Speed factor: \(self?.getPlayerSpeedFactor() ?? 0), Items: \(self?.getItemCount() ?? 0), Holes: \(self?.getHoleCount() ?? 0), Hearts: \(self?.hearts.count ?? 0)")
-                }
-            ]))
-        }
+        print("Setting up new level \(level)")
+        
+        // Stop collision checking during transition
+        stopContinuousWagonCollisionCheck()
+        
+        isMoving = false
+        isCollecting = false
+        isOnHole = false
+        holeSlowdownEndTime = 0
+        currentDirection = .right
+        nextDirection = nil
+        collectedItems = 0
+        expiredItems = 0
+        playerFollowingWagon = false
+        heartGridPosition = nil // Clear heart position
+        
+        // Clear hole effect for level transition
+        player.hideSlowdownEffect()
+        
+        // Clear all wagon interactions properly
+        clearAllWagonInteractions()
+        
+        currentMaze = nextMaze.isEmpty ? getMazeLayout(for: level) : nextMaze
+        setupMaze(maze: currentMaze)
+        spawnItems() // This will now also spawn hearts if needed
+        findSafeStartingPosition()
+        
+        // Update obstacle references to new maze
+        updateObstacleReferences()
+        
+        run(.sequence([
+            .wait(forDuration: 0.1),
+            .run { [weak self] in
+                self?.startPlayerMovement() // This will also restart collision checking
+                self?.isTransitioning = false
+                print("Level transition complete - input and movement re-enabled")
+                print("Level \(self?.level ?? 0) stats: Speed factor: \(self?.getPlayerSpeedFactor() ?? 0), Items: \(self?.getItemCount() ?? 0), Holes: \(self?.getHoleCount() ?? 0), Hearts: \(self?.hearts.count ?? 0)")
+            }
+        ]))
+    }
     
     func updateObstacleReferences() {
         let mazePixelWidth = CGFloat(mazeWidth) * gridSize
@@ -1809,52 +2057,52 @@ class GameScene: SKScene {
     }
     
     func restartGame() {
-            print("Restarting game...")
-            
-            // Stop collision checking
-            stopContinuousWagonCollisionCheck()
-            
-            // Hide any active hole effects before restart
-            player?.hideSlowdownEffect()
-            
-            // Clear all wagon interactions properly
-            clearAllWagonInteractions()
-            
-            // Reset game state
-            score = 0
-            level = 1
-            health = 3 // Start with 3 hearts
-            isGameOver = false
-            isTransitioning = false
-            isMoving = false
-            isCollecting = false
-            isOnHole = false
-            holeSlowdownEndTime = 0
-            currentDirection = .right
-            nextDirection = nil
-            collectedItems = 0
-            expiredItems = 0
-            gameStarted = false
-            waitingForFirstSwipe = true
-            playerFollowingWagon = false
-            heartGridPosition = nil // Clear heart position
-
-            // Remove all children and start fresh
-            removeAllChildren()
-            
-            // Clear arrays
-            walls.removeAll()
-            items.removeAll()
-            pathTiles.removeAll()
-            holes.removeAll()
-            cats.removeAll()
-            wagons.removeAll()
-            hearts.removeAll() // Clear hearts
-            itemGridPositions.removeAll()
-            
-            // Restart the game
-            didMove(to: view!)
-        }
+        print("Restarting game...")
+        
+        // Stop collision checking
+        stopContinuousWagonCollisionCheck()
+        
+        // Hide any active hole effects before restart
+        player?.hideSlowdownEffect()
+        
+        // Clear all wagon interactions properly
+        clearAllWagonInteractions()
+        
+        // Reset game state
+        score = 0
+        level = 1
+        health = 3 // Start with 3 hearts
+        isGameOver = false
+        isTransitioning = false
+        isMoving = false
+        isCollecting = false
+        isOnHole = false
+        holeSlowdownEndTime = 0
+        currentDirection = .right
+        nextDirection = nil
+        collectedItems = 0
+        expiredItems = 0
+        gameStarted = false
+        waitingForFirstSwipe = true
+        playerFollowingWagon = false
+        heartGridPosition = nil // Clear heart position
+        
+        // Remove all children and start fresh
+        removeAllChildren()
+        
+        // Clear arrays
+        walls.removeAll()
+        items.removeAll()
+        pathTiles.removeAll()
+        holes.removeAll()
+        cats.removeAll()
+        wagons.removeAll()
+        hearts.removeAll() // Clear hearts
+        itemGridPositions.removeAll()
+        
+        // Restart the game
+        didMove(to: view!)
+    }
     
     func collectMultipleItems(at indices: [Int]) {
         guard !indices.isEmpty, !isTransitioning, !isGameOver else { return }

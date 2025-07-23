@@ -17,7 +17,7 @@ class WagonObstacle: SKSpriteNode {
     private var maze: [[Int]] = []
     private var mazeOffset: CGPoint = .zero
     private var playerSpeedFactor: Double = 1.0
-    private let moveSpeed: TimeInterval = 0.5 // Same constant speed as cat obstacle
+    private let moveSpeed: TimeInterval = 0.8 // Slower than before for better player interaction
     
     // Movement
     private var moveTimer: Timer?
@@ -27,6 +27,8 @@ class WagonObstacle: SKSpriteNode {
     private let maxStuckAttempts: Int = 3
     private var isInEscapeMode: Bool = false
     private var escapeDirections: [MoveDirection] = []
+    private var deadEndCounter: Int = 0
+    private let maxDeadEndAttempts: Int = 2
     
     // Player interaction
     weak var player: PlayerNode?
@@ -34,8 +36,8 @@ class WagonObstacle: SKSpriteNode {
     
     enum PlayerInteractionType {
         case playerInFront      // Player in front - both stop
-        case playerBehind       // Player behind - both stop
-        case playerAtSide       // Player at side - player stops until wagon moves
+        case playerBehind       // Player behind - wagon moves away, player can follow
+        case playerAtSide       // Player at side - wagon tries to escape
         case playerClear        // Player clear - normal movement
     }
     
@@ -72,7 +74,7 @@ class WagonObstacle: SKSpriteNode {
         physicsBody = SKPhysicsBody(rectangleOf: CGSize(width: gridSize * 0.8, height: gridSize * 0.8))
         physicsBody?.isDynamic = false
         physicsBody?.categoryBitMask = WagonObstacle.categoryBitMask
-        physicsBody?.collisionBitMask = PlayerNode.category // Now collides with player
+        physicsBody?.collisionBitMask = PlayerNode.category
         physicsBody?.contactTestBitMask = PlayerNode.category
     }
     
@@ -81,25 +83,45 @@ class WagonObstacle: SKSpriteNode {
     }
     
     private func scheduleNextMove() {
-        guard !isBlocked else {
-            // Check again later if blocked
+        // IMPORTANT: If player is behind, wagon should NEVER be blocked
+        if isBlocked && !isPlayerCurrentlyBehind() {
+            // Only check again later if blocked and player is NOT behind
             moveTimer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: false) { [weak self] _ in
                 self?.scheduleNextMove()
             }
             return
         }
         
-        // Use constant speed same as cat obstacle (0.5 seconds)
+        // If player is behind, force unblock and continue moving
+        if isPlayerCurrentlyBehind() && isBlocked {
+            isBlocked = false
+            print("Wagon: Unblocking because player is behind - must keep moving")
+        }
+        
         moveTimer = Timer.scheduledTimer(withTimeInterval: moveSpeed, repeats: false) { [weak self] _ in
             self?.moveToNextPosition()
         }
     }
     
+    private func isPlayerCurrentlyBehind() -> Bool {
+        guard let playerPos = getPlayerGridPosition() else { return false }
+        let wagonPos = worldToGridPosition(position)
+        return isPlayerBehind(playerPos, wagonPos: wagonPos)
+    }
+    
     private func moveToNextPosition() {
-        // Check if we're blocked before attempting to move
-        guard !isBlocked else {
+        // IMPORTANT: Never stop moving if player is behind
+        let playerBehind = isPlayerCurrentlyBehind()
+        
+        if isBlocked && !playerBehind {
             print("Wagon attempted to move while blocked - stopping")
             return
+        }
+        
+        // If player is behind, force continue moving even if blocked
+        if playerBehind && isBlocked {
+            isBlocked = false
+            print("Wagon: Player behind - forcing movement to continue")
         }
         
         let currentGridPos = worldToGridPosition(position)
@@ -109,30 +131,33 @@ class WagonObstacle: SKSpriteNode {
             let worldPos = gridToWorldPosition(nextPos)
             updateDirection(to: worldPos)
             
-            // Double-check we're not blocked before starting move action
-            guard !isBlocked else {
-                print("Wagon blocked during move setup - stopping")
-                return
+            // Double check - if player is behind, never block
+            if playerBehind && isBlocked {
+                isBlocked = false
+                print("Wagon: Double-check unblock for player behind")
             }
             
-            // Use constant speed same as cat obstacle
             let moveAction = SKAction.move(to: worldPos, duration: moveSpeed)
             moveAction.timingMode = .linear
             
-            // Create completion action
             let completionAction = SKAction.run { [weak self] in
-                // Check if we're still not blocked after movement completes
-                guard let self = self, !self.isBlocked else {
-                    print("Wagon blocked after movement - not scheduling next move")
-                    return
+                guard let self = self else { return }
+                
+                // Important: Even after movement, don't block if player is behind
+                let stillBehind = self.isPlayerCurrentlyBehind()
+                if stillBehind && self.isBlocked {
+                    self.isBlocked = false
+                    print("Wagon: Post-movement unblock - player still behind")
                 }
+                
                 self.checkPlayerInteraction()
                 self.scheduleNextMove()
+                
+                // Reset dead end counter on successful move
+                self.deadEndCounter = 0
             }
             
-            // Create sequence with move and completion
             let sequence = SKAction.sequence([moveAction, completionAction])
-            
             playWalkAnimation()
             
             // Reset stuck counter on successful move
@@ -141,8 +166,25 @@ class WagonObstacle: SKSpriteNode {
             
             run(sequence, withKey: "wagonMovement")
         } else {
-            // No valid next position found
-            handleStuckSituation()
+            // No valid next position found - but if player is behind, try harder to find a path
+            if playerBehind {
+                print("Wagon: Player behind but no path found - trying alternative directions")
+                // Try any available direction, even if not optimal
+                let allDirections: [MoveDirection] = [.up, .down, .left, .right]
+                for direction in allDirections {
+                    if let nextPos = getNextPositionInDirection(from: currentGridPos, direction: direction) {
+                        if isValidRoadPosition(nextPos) {
+                            currentDirection = direction
+                            print("Wagon: Using fallback direction \(direction.description) to avoid stopping")
+                            scheduleNextMove()
+                            return
+                        }
+                    }
+                }
+            }
+            
+            // Handle dead end normally
+            handleDeadEnd()
         }
     }
     
@@ -152,11 +194,11 @@ class WagonObstacle: SKSpriteNode {
             return findEscapePosition(from: gridPos)
         }
         
-        // Normal movement logic
+        // Normal movement logic with strict player avoidance
         let allDirections: [MoveDirection] = [.up, .down, .left, .right]
         var availableDirections: [MoveDirection] = []
         
-        // Find all valid directions
+        // Find all valid directions (not walls, within bounds)
         for direction in allDirections {
             if let nextPos = getNextPositionInDirection(from: gridPos, direction: direction) {
                 if isValidRoadPosition(nextPos) {
@@ -165,36 +207,178 @@ class WagonObstacle: SKSpriteNode {
             }
         }
         
-        // Remove empty directions
         if availableDirections.isEmpty {
+            print("Wagon: No available directions at all")
             return nil
         }
         
-        // Improved movement logic to reduce back-and-forth
-        var preferredDirections: [MoveDirection] = []
+        // FIXED: Strict player avoidance when player is behind
+        var preferredDirections = availableDirections
         
-        if availableDirections.count > 1 {
-            // Filter out the opposite direction to avoid immediate reversals
-            if let lastDirection = lastMoveDirection {
-                let oppositeDirection = getOppositeDirection(lastDirection)
-                preferredDirections = availableDirections.filter { $0 != oppositeDirection }
+        if let playerPos = getPlayerGridPosition() {
+            if isPlayerBehind(playerPos, wagonPos: gridPos) {
+                // Get the direction toward player (we want to AVOID this)
+                let directionToPlayer = getDirectionToPlayer(from: gridPos, to: playerPos)
+                
+                // ALSO avoid the opposite of current direction (don't turn around toward player)
+                let currentOpposite = getOppositeDirection(currentDirection)
+                
+                // Filter out BOTH the direction to player AND turning around
+                let safeDirections = availableDirections.filter { direction in
+                    return direction != directionToPlayer && direction != currentOpposite
+                }
+                
+                if !safeDirections.isEmpty {
+                    preferredDirections = safeDirections
+                    print("Wagon: Player behind, avoiding direction to player (\(directionToPlayer.description)) and turning around (\(currentOpposite.description))")
+                    print("Wagon: Safe directions: \(safeDirections.map { $0.description })")
+                } else {
+                    // If no safe directions, at least avoid moving directly toward player
+                    let notTowardPlayer = availableDirections.filter { $0 != directionToPlayer }
+                    if !notTowardPlayer.isEmpty {
+                        preferredDirections = notTowardPlayer
+                        print("Wagon: No fully safe directions, at least avoiding direct path to player")
+                    } else {
+                        // Last resort - any available direction
+                        preferredDirections = availableDirections
+                        print("Wagon: All directions problematic, using any available")
+                    }
+                }
+            } else {
+                // Player not behind - move freely but still prefer not reversing
+                if availableDirections.count > 1, let lastDirection = lastMoveDirection {
+                    let oppositeDirection = getOppositeDirection(lastDirection)
+                    let nonReverseDirections = availableDirections.filter { $0 != oppositeDirection }
+                    if !nonReverseDirections.isEmpty {
+                        preferredDirections = nonReverseDirections
+                    }
+                }
             }
-            
-            // If we still have options after filtering, use them
-            if !preferredDirections.isEmpty {
-                availableDirections = preferredDirections
+        } else {
+            // No player detected - avoid reversals
+            if availableDirections.count > 1, let lastDirection = lastMoveDirection {
+                let oppositeDirection = getOppositeDirection(lastDirection)
+                let nonReverseDirections = availableDirections.filter { $0 != oppositeDirection }
+                if !nonReverseDirections.isEmpty {
+                    preferredDirections = nonReverseDirections
+                }
             }
         }
         
-        // Add randomness: prefer continuing in current direction sometimes
-        if availableDirections.contains(currentDirection) && Double.random(in: 0...1) < 0.4 {
-            // 40% chance to continue in current direction - no assignment needed
+        // Choose direction - prefer continuing forward if it's safe
+        if preferredDirections.contains(currentDirection) && Double.random(in: 0...1) < 0.7 {
+            print("Wagon: Continuing forward in safe direction \(currentDirection.description)")
+            // Keep current direction
         } else {
-            // Choose a random direction from available options
-            currentDirection = availableDirections.randomElement() ?? currentDirection
+            let newDirection = preferredDirections.randomElement() ?? currentDirection
+            currentDirection = newDirection
+            print("Wagon: Changing to safe direction \(currentDirection.description)")
         }
         
         return getNextPositionInDirection(from: gridPos, direction: currentDirection)
+    }
+    
+    private func isDeadEnd(_ gridPos: CGPoint) -> Bool {
+        let allDirections: [MoveDirection] = [.up, .down, .left, .right]
+        var validDirections = 0
+        
+        for direction in allDirections {
+            if let nextPos = getNextPositionInDirection(from: gridPos, direction: direction) {
+                if isValidRoadPosition(nextPos) {
+                    validDirections += 1
+                }
+            }
+        }
+        
+        return validDirections <= 1 // Dead end if only one or no valid directions
+    }
+    
+    private func getPlayerGridPosition() -> CGPoint? {
+        guard let player = player else { return nil }
+        return worldToGridPosition(player.position)
+    }
+    
+    private func isPlayerBehind(_ playerPos: CGPoint, wagonPos: CGPoint) -> Bool {
+        // Calculate which direction the wagon is currently moving
+        let wagonDirection = currentDirection
+        
+        // Get the position that would be "behind" the wagon (opposite to its movement direction)
+        let oppositeVector = getOppositeDirection(wagonDirection).vector
+        let behindPos = CGPoint(
+            x: wagonPos.x + oppositeVector.dx,
+            y: wagonPos.y + oppositeVector.dy
+        )
+        
+        // Check if player is in the "behind" area (within reasonable distance)
+        let distance = hypot(playerPos.x - behindPos.x, playerPos.y - behindPos.y)
+        let isDirectlyBehind = distance <= 1.0
+        
+        // Also check if player is generally in the opposite direction of wagon's movement
+        let deltaX = playerPos.x - wagonPos.x
+        let deltaY = playerPos.y - wagonPos.y
+        let wagonDirectionVector = wagonDirection.vector
+        
+        // Check if player is in the opposite direction of wagon movement
+        let isInOppositeDirection = (deltaX * (-wagonDirectionVector.dx) + deltaY * (-wagonDirectionVector.dy)) > 0
+        
+        let result = isDirectlyBehind || (isInOppositeDirection && hypot(deltaX, deltaY) <= 2.0)
+        
+        if result {
+            print("Player is behind wagon - wagon direction: \(wagonDirection.description), player at: \(playerPos), wagon at: \(wagonPos)")
+        }
+        
+        return result
+    }
+    
+    private func getDirectionToPlayer(from wagonPos: CGPoint, to playerPos: CGPoint) -> MoveDirection {
+        let deltaX = playerPos.x - wagonPos.x
+        let deltaY = playerPos.y - wagonPos.y
+        
+        // Determine the primary direction from wagon to player
+        let direction: MoveDirection
+        if abs(deltaX) > abs(deltaY) {
+            direction = deltaX > 0 ? .right : .left
+        } else {
+            direction = deltaY > 0 ? .up : .down
+        }
+        
+        print("Direction from wagon to player: \(direction.description) (wagon: \(wagonPos), player: \(playerPos))")
+        return direction
+    }
+    
+    private func handleDeadEnd() {
+        deadEndCounter += 1
+        print("Wagon hit dead end (attempt \(deadEndCounter))")
+        
+        if deadEndCounter >= maxDeadEndAttempts {
+            // Force turn around - choose opposite direction or any available direction
+            let currentGridPos = worldToGridPosition(position)
+            let oppositeDirection = getOppositeDirection(currentDirection)
+            
+            if let oppositePos = getNextPositionInDirection(from: currentGridPos, direction: oppositeDirection),
+               isValidRoadPosition(oppositePos) {
+                currentDirection = oppositeDirection
+                print("Wagon turning around due to dead end")
+            } else {
+                // Find any available direction
+                let allDirections: [MoveDirection] = [.up, .down, .left, .right]
+                for direction in allDirections {
+                    if let nextPos = getNextPositionInDirection(from: currentGridPos, direction: direction),
+                       isValidRoadPosition(nextPos) {
+                        currentDirection = direction
+                        print("Wagon changing to direction \(direction) due to dead end")
+                        break
+                    }
+                }
+            }
+            deadEndCounter = 0
+        }
+        
+        // Try again shortly
+        moveTimer = Timer.scheduledTimer(withTimeInterval: 0.2, repeats: false) { [weak self] _ in
+            guard let self = self, !self.isBlocked else { return }
+            self.scheduleNextMove()
+        }
     }
     
     private func findEscapePosition(from gridPos: CGPoint) -> CGPoint? {
@@ -221,12 +405,10 @@ class WagonObstacle: SKSpriteNode {
             }
         }
         
-        // No valid escape routes
         return nil
     }
     
     private func handleStuckSituation() {
-        // Don't try to handle stuck situation if we're blocked
         guard !isBlocked else {
             print("Wagon stuck but blocked - not attempting recovery")
             return
@@ -235,14 +417,12 @@ class WagonObstacle: SKSpriteNode {
         stuckCounter += 1
         
         if stuckCounter >= maxStuckAttempts {
-            // Force a random direction change after being stuck
-            print("Wagon stuck, forcing random direction change")
+            print("Wagon stuck, forcing direction change")
             let allDirections: [MoveDirection] = [.up, .down, .left, .right]
             currentDirection = allDirections.randomElement() ?? .right
             stuckCounter = 0
         }
         
-        // Try again shortly, but only if not blocked
         moveTimer = Timer.scheduledTimer(withTimeInterval: 0.2, repeats: false) { [weak self] _ in
             guard let self = self, !self.isBlocked else { return }
             self.scheduleNextMove()
@@ -321,6 +501,15 @@ class WagonObstacle: SKSpriteNode {
             return
         }
         
+        // Check if player is at side of wagon
+        let sidePositions = getSidePositions(wagonGridPos)
+        for sidePos in sidePositions {
+            if playerGridPos.x == sidePos.x && playerGridPos.y == sidePos.y {
+                onPlayerInteraction?(self, .playerAtSide)
+                return
+            }
+        }
+        
         // Player is clear
         onPlayerInteraction?(self, .playerClear)
     }
@@ -341,12 +530,31 @@ class WagonObstacle: SKSpriteNode {
         )
     }
     
+    private func getSidePositions(_ wagonPos: CGPoint) -> [CGPoint] {
+        let perpendicular = getPerpendicularDirections(to: currentDirection)
+        return perpendicular.map { direction in
+            let vector = direction.vector
+            return CGPoint(
+                x: wagonPos.x + vector.dx,
+                y: wagonPos.y + vector.dy
+            )
+        }
+    }
+    
+    private func getPerpendicularDirections(to direction: MoveDirection) -> [MoveDirection] {
+        switch direction {
+        case .up, .down:
+            return [.left, .right]
+        case .left, .right:
+            return [.up, .down]
+        }
+    }
+    
     func setEscapeMode(escapeDirections: [MoveDirection]) {
         self.isInEscapeMode = true
         self.escapeDirections = escapeDirections
         self.isBlocked = false
         
-        // Immediately try to move in escape direction
         scheduleNextMove()
         print("Wagon entering escape mode with directions: \(escapeDirections.map { $0.description })")
     }
@@ -356,7 +564,6 @@ class WagonObstacle: SKSpriteNode {
         self.escapeDirections = []
         self.isBlocked = false
         
-        // Resume normal movement
         scheduleNextMove()
         print("Wagon resuming normal movement")
     }
@@ -366,12 +573,11 @@ class WagonObstacle: SKSpriteNode {
         if blocked {
             print("Wagon blocked: \(reason)")
             stopAnimation()
-            removeAction(forKey: "wagonMovement") // Stop specific movement action
-            removeAllActions() // Stop any other actions
-            moveTimer?.invalidate() // Stop the movement timer
+            removeAction(forKey: "wagonMovement")
+            removeAllActions()
+            moveTimer?.invalidate()
             moveTimer = nil
             
-            // Clear escape mode when blocked
             isInEscapeMode = false
             escapeDirections = []
         } else {
@@ -392,7 +598,6 @@ class WagonObstacle: SKSpriteNode {
         return worldToGridPosition(position)
     }
     
-    // Method to check if wagon is about to change direction
     func isAboutToChangeDirection() -> Bool {
         let currentGridPos = worldToGridPosition(position)
         let nextPosition = findNextRoadPosition(from: currentGridPos)
@@ -434,8 +639,7 @@ class WagonObstacle: SKSpriteNode {
     }
     
     func updatePlayerSpeedFactor(_ factor: Double) {
-        // No longer used - wagon now uses constant speed like cat obstacle
-        // Keeping method for compatibility with existing code
+        // Keeping method for compatibility
     }
     
     deinit {
