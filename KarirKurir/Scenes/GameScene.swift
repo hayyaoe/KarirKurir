@@ -83,6 +83,8 @@ class GameScene: SKScene {
         calculateOptimalGridSize()
         
         setupGestures()
+        setupBackground()
+
         let (maze, houses) = getMazeLayout(for: level)
         currentMaze = maze
         houseAreas = houses
@@ -201,6 +203,46 @@ class GameScene: SKScene {
             let swipe = UISwipeGestureRecognizer(target: self, action: #selector(handleSwipe))
             swipe.direction = dir
             view?.addGestureRecognizer(swipe)
+        }
+    }
+    
+    func setupBackground() {
+        let tileSize = CGSize(width: gridSize, height: gridSize)
+
+        let mazePixelWidth = CGFloat(mazeWidth) * gridSize
+        let mazePixelHeight = CGFloat(mazeHeight) * gridSize
+        let offsetX = (size.width - mazePixelWidth)/2
+        let offsetY = (size.height - mazePixelHeight)/2
+
+        let extraTiles: CGFloat = 3
+
+        let minX = offsetX - extraTiles * gridSize
+        let maxX = offsetX + mazePixelWidth + extraTiles * gridSize
+        let minY = offsetY - extraTiles * gridSize
+        let maxY = offsetY + mazePixelHeight + extraTiles * gridSize
+
+        let columns = Int((maxX - minX)/gridSize)
+        let rows = Int((maxY - minY)/gridSize)
+
+        for row in 0 ..< rows {
+            for col in 0 ..< columns {
+                let pos = CGPoint(
+                    x: minX + CGFloat(col) * gridSize + gridSize/2,
+                    y: minY + CGFloat(row) * gridSize + gridSize/2
+                )
+
+                let grass = SKSpriteNode(texture: SKTexture(imageNamed: "pathGrass"), size: tileSize)
+                grass.position = pos
+                grass.zPosition = -100
+                addChild(grass)
+
+                if Int.random(in: 0 ..< 10) == 0 {
+                    let tree = SKSpriteNode(texture: SKTexture(imageNamed: "pathTree"), size: tileSize)
+                    tree.position = pos
+                    tree.zPosition = -90
+                    addChild(tree)
+                }
+            }
         }
     }
 
