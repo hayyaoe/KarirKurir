@@ -8,6 +8,7 @@
 import SpriteKit
 
 class ItemNode: SKSpriteNode {
+    
     private var countdownTimer: Timer?
     private var remainingTime: Int
     private var initialTime: Int
@@ -25,6 +26,10 @@ class ItemNode: SKSpriteNode {
     // Callback to notify the scene when the timer expires
     var onTimerExpired: (() -> Void)?
     
+    // PAUSE FUNCTIONALITY
+//    private var isPaused: Bool = false
+    private var pausedAt: Date?
+    
     init(size: CGSize, initialTime: Int) {
         self.remainingTime = initialTime
         self.initialTime = initialTime
@@ -37,34 +42,70 @@ class ItemNode: SKSpriteNode {
         startCountdown()
     }
     
-    @available(*, unavailable)
     required init?(coder aDecoder: NSCoder) {
         fatalError("init(coder:) has not been implemented")
     }
     
+    // MARK: - Pause/Resume Methods
+    
+    func pauseTimer() {
+        guard !isPaused else { return }
+        
+        isPaused = true
+        pausedAt = Date()
+        countdownTimer?.invalidate()
+        countdownTimer = nil
+        
+        // Pause visual animations
+        self.removeAllActions()
+        chatBubble?.removeAllActions()
+        progressBarFill?.removeAllActions()
+        
+        print("ItemNode timer paused with \(remainingTime) seconds remaining")
+    }
+    
+    func resumeTimer() {
+        guard isPaused else { return }
+        
+        isPaused = false
+        pausedAt = nil
+        
+        // Resume countdown
+        startCountdown()
+        
+        // Resume visual animations
+        setupVisualAnimations()
+        
+        print("ItemNode timer resumed with \(remainingTime) seconds remaining")
+    }
+    
     private func setupVisuals() {
+        setupVisualAnimations()
+    }
+    
+    private func setupVisualAnimations() {
         // Add a subtle pulse animation
         let scaleUp = SKAction.scale(to: 1.1, duration: 0.5)
         let scaleDown = SKAction.scale(to: 1.0, duration: 0.5)
         let pulse = SKAction.repeatForever(SKAction.sequence([scaleUp, scaleDown]))
-        run(pulse)
+        run(pulse, withKey: "pulseAnimation")
     }
     
     private func setupChatBubbleTimer() {
         // Create chat bubble using the provided image
         let bubbleTexture = SKTexture(imageNamed: "package") // Use your chat bubble image name
-        chatBubble = SKSpriteNode(texture: bubbleTexture, size: CGSize(width: size.width * 2.6, height: size.height * 2.3))
+        chatBubble = SKSpriteNode(texture: bubbleTexture, size: CGSize(width: size.width * 2.7, height: size.height * 2.7))
         chatBubble.position = CGPoint(x: 0, y: size.height * 0.8) // Position above the item
         chatBubble.zPosition = 1
         addChild(chatBubble)
         
         // Create progress bar background inside the bubble
-        let barWidth: CGFloat = chatBubble.size.width * 0.7
-        let barHeight: CGFloat = 8
+        let barWidth: CGFloat = chatBubble.size.width * 0.7 * 0.9
+        let barHeight: CGFloat = 8 * 0.9
         progressBarBackground = SKShapeNode(rectOf: CGSize(width: barWidth, height: barHeight), cornerRadius: 4)
         progressBarBackground.fillColor = .darkGray
         progressBarBackground.strokeColor = .clear
-        progressBarBackground.position = CGPoint(x: 0, y: -2) // Slightly below center of bubble
+        progressBarBackground.position = CGPoint(x: 0, y: -7) // Slightly below center of bubble
         chatBubble.addChild(progressBarBackground)
         
         // Create progress bar fill
@@ -76,21 +117,27 @@ class ItemNode: SKSpriteNode {
     }
     
     private func setupPhysics() {
-        physicsBody = SKPhysicsBody(circleOfRadius: size.width / 2)
-        physicsBody?.isDynamic = false
+        self.physicsBody = SKPhysicsBody(circleOfRadius: size.width / 2)
+        self.physicsBody?.isDynamic = false
         
         // Assign Physics Categories
-        physicsBody?.categoryBitMask = ItemNode.categoryBitMask
-        physicsBody?.collisionBitMask = PlayerNode.category
-        physicsBody?.contactTestBitMask = 0
+        self.physicsBody?.categoryBitMask = ItemNode.categoryBitMask
+        self.physicsBody?.collisionBitMask = PlayerNode.category
+        self.physicsBody?.contactTestBitMask = 0
     }
     
     private func startCountdown() {
+        // Don't start if paused
+        guard !isPaused else { return }
+        
         // The timer closure now safely unwraps self.
         countdownTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
             // Safely unwrap self. If self is nil (because the node was deallocated),
             // the code inside the guard will not execute, preventing a crash.
             guard let self = self else { return }
+            
+            // Don't update if paused
+            guard !self.isPaused else { return }
             
             // Now that we have a strong reference to self, we can safely call the instance method.
             self.updateTimer()
@@ -118,9 +165,9 @@ class ItemNode: SKSpriteNode {
         
         // Update category and color based on remaining time
         let newCategory = ItemCategory.category(for: remainingTime)
-        if newCategory != category {
+        if newCategory != self.category {
             // Update the internal category state
-            category = newCategory
+            self.category = newCategory
             
             // Update progress bar color with animation
             let colorChangeAction = SKAction.run {
