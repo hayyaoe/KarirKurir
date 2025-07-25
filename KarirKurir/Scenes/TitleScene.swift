@@ -5,12 +5,14 @@
 //  Created by Mahardika Putra Wardhana on 16/07/25.
 //
 
+import GameKit
 import SpriteKit
 
-class TitleScene: SKScene {
+class TitleScene: SKScene, GKGameCenterControllerDelegate {
     var player: SKSpriteNode
     var cat: SKSpriteNode
     var bakso: SKSpriteNode
+    var leaderboardButton: SKSpriteNode
     var titleImage: SKSpriteNode // Add title image property
     let tileSize: CGFloat = 40
     let scrollSpeed: CGFloat = 100.0
@@ -18,7 +20,7 @@ class TitleScene: SKScene {
 
     var pathTiles: [SKSpriteNode] = []
     var wallTiles: [SKSpriteNode] = []
-    
+
     private var settingNode: SettingNode!
 
     override init(size: CGSize) {
@@ -45,32 +47,38 @@ class TitleScene: SKScene {
         let framesBakso = (1 ... 4).map { SKTexture(imageNamed: "obstacleWagonRight\($0)") }
         let walkBakso = SKAction.animate(with: framesBakso, timePerFrame: 0.15)
         bakso.run(SKAction.repeatForever(walkBakso))
-        
+
         // Add title image
         titleImage = SKSpriteNode(imageNamed: "KarirKurirLogo") // Replace with your actual image name
         titleImage.position = CGPoint(x: size.width / 2, y: size.height - 90) // Position at top center
         titleImage.zPosition = 5 // Above other game elements
         titleImage.setScale(0.9) // Adjust scale as needed
-        
+
         // Add a subtle glow/pulsing effect to the title
         let scaleUp = SKAction.scale(to: 1, duration: 3.0)
         let scaleDown = SKAction.scale(to: 0.8, duration: 3.0)
         let pulse = SKAction.repeatForever(SKAction.sequence([scaleUp, scaleDown]))
         titleImage.run(pulse)
-        
+
         playButton = SKSpriteNode(imageNamed: "PlayButton")
         playButton.name = "playButton"
         playButton.zPosition = 101
         playButton.position = CGPoint(x: 420, y: 80)
         playButton.setScale(0.45)
-        
+
         let settingButton = SKSpriteNode(imageNamed: "SettingButton")
         settingButton.name = "settingButton"
         settingButton.position = CGPoint(x: size.width - 60, y: size.height - 40)
         settingButton.zPosition = 100
 
+        leaderboardButton = SKSpriteNode(imageNamed: "leaderboardButton")
+        leaderboardButton.name = "leaderboardButton"
+        leaderboardButton.zPosition = 5
+        leaderboardButton.scale(to: CGSize(width: 42, height: 42))
+        leaderboardButton.position = CGPoint(x: settingButton.position.x - 50, y: settingButton.position.y)
+
         super.init(size: size)
-        
+
         // Add all elements to the scene
         addChild(player)
         addChild(cat)
@@ -78,14 +86,19 @@ class TitleScene: SKScene {
         addChild(titleImage) // Add the title image
         addChild(playButton)
         addChild(settingButton)
+        addChild(leaderboardButton)
         setupScrollingBackground()
-        
+
         playMusicIfEnabled(named: "HeatleyBros - HeatleyBros I - 06 8 Bit Love", on: self)
     }
 
     @available(*, unavailable)
     required init?(coder aDecoder: NSCoder) {
         fatalError("init(coder:) has not been implemented")
+    }
+
+    func gameCenterViewControllerDidFinish(_ gameCenterViewController: GKGameCenterViewController) {
+        gameCenterViewController.dismiss(animated: true, completion: nil)
     }
 
     func setupScrollingBackground() {
@@ -154,12 +167,12 @@ class TitleScene: SKScene {
             }
         }
     }
-    
+
     override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
         for touch in touches {
             let location = touch.location(in: self)
             let node = atPoint(location)
-            
+
             // Play Button
             if node.name == "playButton" || node.parent?.name == "playButton" {
                 // Add button press effect
@@ -168,16 +181,32 @@ class TitleScene: SKScene {
                 let pressDown = SKAction.scale(to: 0.35, duration: 0.1)
                 let pressUp = SKAction.scale(to: 0.45, duration: 0.1)
                 let sequence = SKAction.sequence([pressDown, pressUp])
-                
+
                 playSoundIfEnabled(named: "select.wav", on: self)
-                
+
                 playButton.run(sequence) {
                     // Navigate to game scene after animation
                     self.navigateToGameScene()
                 }
                 return
             }
-            
+
+            if node.name == "leaderboardButton" || node.parent?.name == "leaderboardButton" {
+                leaderboardButton.removeAllActions()
+                guard GKLocalPlayer.local.isAuthenticated else {
+                    print("Player belum login ke Game Center")
+                    return
+                }
+
+                let leaderboardID = "karirKurirHighScore"
+                let gcViewController = GKGameCenterViewController(leaderboardID: leaderboardID, playerScope: .global, timeScope: .allTime)
+                gcViewController.gameCenterDelegate = self
+
+                if let viewController = view?.window?.rootViewController {
+                    viewController.present(gcViewController, animated: true, completion: nil)
+                }
+            }
+
             // Setting Button
             if node.name == "settingButton" || node.parent?.name == "settingButton" {
                 playSoundIfEnabled(named: "select.wav", on: self)
@@ -186,34 +215,34 @@ class TitleScene: SKScene {
                 }
                 return
             }
-            
+
             // Toggle SFX - Special handling needed
             if node.name == "sfxToggle" || node.parent?.name == "sfxToggle" {
                 let sound = SKAction.playSoundFileNamed("select.wav", waitForCompletion: false)
-                self.run(sound)
-                
+                run(sound)
+
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
                     self.settingNode?.toggleSetting(named: "soundEffectsEnabled")
                 }
                 return
             }
-            
+
             // Toggle Haptics
             if node.name == "hapticsToggle" || node.parent?.name == "hapticsToggle" {
                 let sound = SKAction.playSoundFileNamed("select.wav", waitForCompletion: false)
-                self.run(sound)
-                
+                run(sound)
+
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
                     self.settingNode?.toggleSetting(named: "hapticsEnabled")
                 }
                 return
             }
-            
+
             // Toggle Music
             if node.name == "musicToggle" || node.parent?.name == "musicToggle" {
                 let sound = SKAction.playSoundFileNamed("select.wav", waitForCompletion: false)
-                self.run(sound)
-                
+                run(sound)
+
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
                     self.settingNode?.toggleSetting(named: "musicEnabled")
                     self.toggleMusic(on: self, fileName: "HeatleyBros - HeatleyBros I - 06 8 Bit Love")
@@ -221,7 +250,7 @@ class TitleScene: SKScene {
 
                 return
             }
-            
+
             // Close Settings
             if node.name == "closeButton" || node.parent?.name == "closeButton" {
                 playSoundIfEnabled(named: "select.wav", on: self)
@@ -232,7 +261,7 @@ class TitleScene: SKScene {
             }
         }
     }
-    
+
     func showSettingMenu() {
         if settingNode == nil {
             settingNode = SettingNode()
@@ -246,14 +275,14 @@ class TitleScene: SKScene {
         settingNode?.removeFromParent()
         settingNode = nil
     }
-    
+
     func navigateToGameScene() {
         let gameScene = GameScene()
         let screenBounds = UIScreen.main.bounds
         let screenSize = CGSize(width: screenBounds.width, height: screenBounds.height)
         gameScene.size = screenSize
-        
+
         let transition = SKTransition.fade(withDuration: 1.0)
-        self.view?.presentScene(gameScene, transition: transition)
+        view?.presentScene(gameScene, transition: transition)
     }
 }

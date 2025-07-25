@@ -7,7 +7,7 @@
 
 import SpriteKit
 
-class GameScene: SKScene {    
+class GameScene: SKScene {
     // MARK: - Game Elements
     
     var player: PlayerNode!
@@ -17,7 +17,6 @@ class GameScene: SKScene {
     private var gameOverNode: GameOverNode?
 //    private var musicNode: SKAudioNode?
 
-    
     // get current maze -> render walls -> render destinations
     var currentMaze: [[Int]] = []
     var walls: [SKSpriteNode] = []
@@ -30,6 +29,8 @@ class GameScene: SKScene {
     var cats: [CatObstacle] = []
     var wagons: [WagonObstacle] = []
     
+    var allItemsCollectedWhileGreen: Bool = true
+
     // Next Object
     var nextMaze: [[Int]] = []
     var nextWalls: [[SKSpriteNode]] = []
@@ -60,8 +61,6 @@ class GameScene: SKScene {
     var playerBlockedBySide: Bool = false
     var playerFollowingWagon: Bool = false // New state for following behavior
     
-    
-    
     // MARK: - UI
     
     var scoreLabel: SKLabelNode!
@@ -77,9 +76,9 @@ class GameScene: SKScene {
     let baseMoveDeuration: TimeInterval = 0.18 // Base movement duration
     
     // MARK: - Maze dimensions
+
     let mazeWidth: Int = 20
     let mazeHeight: Int = 11
-    
     
     // MARK: - Level Configuration
     
@@ -131,11 +130,11 @@ class GameScene: SKScene {
     private func worldToGridPosition(_ worldPos: CGPoint) -> CGPoint {
         let mazePixelWidth = CGFloat(mazeWidth) * gridSize
         let mazePixelHeight = CGFloat(mazeHeight) * gridSize
-        let offsetX = (size.width - mazePixelWidth) / 2
-        let offsetY = (size.height - mazePixelHeight) / 2
+        let offsetX = (size.width - mazePixelWidth)/2
+        let offsetY = (size.height - mazePixelHeight)/2
         
-        let gridX = Int((worldPos.x - offsetX) / gridSize)
-        let gridY = Int((worldPos.y - offsetY) / gridSize)
+        let gridX = Int((worldPos.x - offsetX)/gridSize)
+        let gridY = Int((worldPos.y - offsetY)/gridSize)
         return CGPoint(x: gridX, y: currentMaze.count - gridY - 1)
     }
     
@@ -162,7 +161,6 @@ class GameScene: SKScene {
     // MARK: - Lifecycle
     
     override func didMove(to view: SKView) {
-        
         backgroundColor = .black
         
         // Calculate grid size based on screen dimensions
@@ -212,7 +210,7 @@ class GameScene: SKScene {
         
         // Queue the direction change - this makes controls more responsive
         // during item collection
-        self.nextDirection = direction
+        nextDirection = direction
         
         print("Direction change queued: \(direction.description)")
     }
@@ -274,8 +272,8 @@ class GameScene: SKScene {
     func setupInitialPlayerPosition() {
         let mazePixelWidth = CGFloat(mazeWidth) * gridSize
         let mazePixelHeight = CGFloat(mazeHeight) * gridSize
-        let offsetX = (size.width - mazePixelWidth) / 2
-        let offsetY = (size.height - mazePixelHeight) / 2
+        let offsetX = (size.width - mazePixelWidth)/2
+        let offsetY = (size.height - mazePixelHeight)/2
         
         // Ensure maze is not empty
         guard !currentMaze.isEmpty, !currentMaze[0].isEmpty else {
@@ -287,10 +285,11 @@ class GameScene: SKScene {
         
         // Find the first open path position from the bottom-left area
         for row in stride(from: currentMaze.count - 2, to: 0, by: -1) {
-            for col in 1 ..< min(5, currentMaze[row].count) { // Check only first few columns
+            for col in 1..<min(5, currentMaze[row].count) { // Check only first few columns
                 if row >= 0 && row < currentMaze.count &&
                     col >= 0 && col < currentMaze[row].count &&
-                    currentMaze[row][col] == 0 {
+                    currentMaze[row][col] == 0
+                {
                     let pos = CGPoint(
                         x: offsetX + CGFloat(col) * gridSize + gridSize/2,
                         y: offsetY + CGFloat(currentMaze.count - row - 1) * gridSize + gridSize/2
@@ -319,8 +318,8 @@ class GameScene: SKScene {
         let availableWidth = sceneWidth * 0.90 // Leave 10% margin
         let availableHeight = sceneHeight * 0.80 // Leave 20% margin for UI
         
-        let gridSizeByWidth = availableWidth / CGFloat(mazeWidth)
-        let gridSizeByHeight = availableHeight / CGFloat(mazeHeight)
+        let gridSizeByWidth = availableWidth/CGFloat(mazeWidth)
+        let gridSizeByHeight = availableHeight/CGFloat(mazeHeight)
         
         // Use the smaller value to ensure the maze fits on screen
         gridSize = min(gridSizeByWidth, gridSizeByHeight)
@@ -353,44 +352,44 @@ class GameScene: SKScene {
     }
     
     func setupBackground() {
-            let tileSize = CGSize(width: gridSize, height: gridSize)
+        let tileSize = CGSize(width: gridSize, height: gridSize)
 
-            let mazePixelWidth = CGFloat(mazeWidth) * gridSize
-            let mazePixelHeight = CGFloat(mazeHeight) * gridSize
-            let offsetX = (size.width - mazePixelWidth)/2
-            let offsetY = (size.height - mazePixelHeight)/2
+        let mazePixelWidth = CGFloat(mazeWidth) * gridSize
+        let mazePixelHeight = CGFloat(mazeHeight) * gridSize
+        let offsetX = (size.width - mazePixelWidth)/2
+        let offsetY = (size.height - mazePixelHeight)/2
 
-            let extraTiles: CGFloat = 3
+        let extraTiles: CGFloat = 3
 
-            let minX = offsetX - extraTiles * gridSize
-            let maxX = offsetX + mazePixelWidth + extraTiles * gridSize
-            let minY = offsetY - extraTiles * gridSize
-            let maxY = offsetY + mazePixelHeight + extraTiles * gridSize
+        let minX = offsetX - extraTiles * gridSize
+        let maxX = offsetX + mazePixelWidth + extraTiles * gridSize
+        let minY = offsetY - extraTiles * gridSize
+        let maxY = offsetY + mazePixelHeight + extraTiles * gridSize
 
-            let columns = Int((maxX - minX)/gridSize)
-            let rows = Int((maxY - minY)/gridSize)
+        let columns = Int((maxX - minX)/gridSize)
+        let rows = Int((maxY - minY)/gridSize)
 
-            for row in 0 ..< rows {
-                for col in 0 ..< columns {
-                    let pos = CGPoint(
-                        x: minX + CGFloat(col) * gridSize + gridSize/2,
-                        y: minY + CGFloat(row) * gridSize + gridSize/2
-                    )
+        for row in 0..<rows {
+            for col in 0..<columns {
+                let pos = CGPoint(
+                    x: minX + CGFloat(col) * gridSize + gridSize/2,
+                    y: minY + CGFloat(row) * gridSize + gridSize/2
+                )
 
-                    let grass = SKSpriteNode(texture: SKTexture(imageNamed: "pathGrass"), size: tileSize)
-                    grass.position = pos
-                    grass.zPosition = -100
-                    addChild(grass)
+                let grass = SKSpriteNode(texture: SKTexture(imageNamed: "pathGrass"), size: tileSize)
+                grass.position = pos
+                grass.zPosition = -100
+                addChild(grass)
 
-                    if Int.random(in: 0 ..< 10) == 0 {
-                        let tree = SKSpriteNode(texture: SKTexture(imageNamed: "pathTree"), size: tileSize)
-                        tree.position = pos
-                        tree.zPosition = -90
-                        addChild(tree)
-                    }
+                if Int.random(in: 0..<10) == 0 {
+                    let tree = SKSpriteNode(texture: SKTexture(imageNamed: "pathTree"), size: tileSize)
+                    tree.position = pos
+                    tree.zPosition = -90
+                    addChild(tree)
                 }
             }
         }
+    }
     
     func setupUI() {
         // Calculate positions for space-between layout
@@ -489,8 +488,8 @@ class GameScene: SKScene {
         // Center the maze on screen
         let mazePixelWidth = CGFloat(mazeWidth) * gridSize
         let mazePixelHeight = CGFloat(mazeHeight) * gridSize
-        let offsetX = (size.width - mazePixelWidth) / 2
-        let offsetY = (size.height - mazePixelHeight) / 2
+        let offsetX = (size.width - mazePixelWidth)/2
+        let offsetY = (size.height - mazePixelHeight)/2
         
         determineItemPositions(maze: maze)
         
@@ -564,8 +563,8 @@ class GameScene: SKScene {
         // Pre-calculate maze offset for hole position calculations
         let mazePixelWidth = CGFloat(mazeWidth) * gridSize
         let mazePixelHeight = CGFloat(mazeHeight) * gridSize
-        let offsetX = (size.width - mazePixelWidth) / 2
-        let offsetY = (size.height - mazePixelHeight) / 2
+        let offsetX = (size.width - mazePixelWidth)/2
+        let offsetY = (size.height - mazePixelHeight)/2
         
         // Look for path/road positions (0 = path, 1 = wall)
         for row in 2..<maze.count - 2 {
@@ -589,8 +588,8 @@ class GameScene: SKScene {
                 for hole in holes {
                     let holeWorldX = hole.position.x - offsetX
                     let holeWorldY = hole.position.y - offsetY
-                    let holeGridX = Int(holeWorldX / gridSize)
-                    let holeGridY = Int(holeWorldY / gridSize)
+                    let holeGridX = Int(holeWorldX/gridSize)
+                    let holeGridY = Int(holeWorldY/gridSize)
                     let holeGridRow = maze.count - holeGridY - 1
                     
                     let deltaRow = abs(row - holeGridRow)
@@ -640,8 +639,8 @@ class GameScene: SKScene {
         
         let mazePixelWidth = CGFloat(mazeWidth) * gridSize
         let mazePixelHeight = CGFloat(mazeHeight) * gridSize
-        let offsetX = (size.width - mazePixelWidth) / 2
-        let offsetY = (size.height - mazePixelHeight) / 2
+        let offsetX = (size.width - mazePixelWidth)/2
+        let offsetY = (size.height - mazePixelHeight)/2
         
         let heartSize = CGSize(width: gridSize * 0.5, height: gridSize * 0.5)
         let heart = HeartNode(size: heartSize)
@@ -678,7 +677,8 @@ class GameScene: SKScene {
                     for (adjRow, adjCol) in adjacentPositions {
                         if adjRow >= 0 && adjRow < maze.count &&
                             adjCol >= 0 && adjCol < maze[adjRow].count &&
-                            maze[adjRow][adjCol] == 0 {
+                            maze[adjRow][adjCol] == 0
+                        {
                             hasAdjacentPath = true
                             break
                         }
@@ -705,8 +705,8 @@ class GameScene: SKScene {
         
         let mazePixelWidth = CGFloat(mazeWidth) * gridSize
         let mazePixelHeight = CGFloat(mazeHeight) * gridSize
-        let offsetX = (size.width - mazePixelWidth) / 2
-        let offsetY = (size.height - mazePixelHeight) / 2
+        let offsetX = (size.width - mazePixelWidth)/2
+        let offsetY = (size.height - mazePixelHeight)/2
         
         // Spawn regular items
         for (row, col) in itemGridPositions {
@@ -738,7 +738,6 @@ class GameScene: SKScene {
                 if self.items.isEmpty && !self.isTransitioning {
                     self.checkLevelCompletion()
                 }
-                
             }
             
             addChild(item)
@@ -788,6 +787,7 @@ class GameScene: SKScene {
             let greenCategoryPoints = ItemCategory.green.points
             let bonusScore = greenCategoryPoints * 2 * 10 * level
             score += bonusScore
+            ScoreManager.shared.updateScore(score)
             scoreLabel.text = "Score: \(score)"
             updateHighScoreDisplay()
 
@@ -1047,7 +1047,6 @@ class GameScene: SKScene {
         }
     }
 
-    
     // Helper method to find escape directions for wagon
     private func findEscapeDirections(from wagonPos: CGPoint, avoiding playerPos: CGPoint, currentDirection: MoveDirection, playerPosition: PlayerRelativePosition) -> [MoveDirection] {
         let allDirections: [MoveDirection] = [.up, .down, .left, .right]
@@ -1098,8 +1097,8 @@ class GameScene: SKScene {
     }
     
     func setupPathTiles(maze: [[Int]], offsetX: CGFloat, offsetY: CGFloat) {
-        for row in 1 ..< maze.count - 1 {
-            for col in 1 ..< maze[row].count - 1 {
+        for row in 1..<maze.count - 1 {
+            for col in 1..<maze[row].count - 1 {
                 if let tileType = detectPathTileType(row: row, col: col, in: maze) {
                     let spriteName = spriteNameFor(tileType: tileType)
                     let tileTexture = SKTexture(imageNamed: spriteName)
@@ -1157,7 +1156,6 @@ class GameScene: SKScene {
         }
     }
 
-    
     private func isInteractionAlreadySet(_ wagon: WagonObstacle, _ type: WagonObstacle.PlayerInteractionType) -> Bool {
         switch type {
         case .playerInFront:
@@ -1204,7 +1202,6 @@ class GameScene: SKScene {
         }
     }
 
-    
     private func checkIndividualWagonCollision(_ wagon: WagonObstacle) -> WagonObstacle.PlayerInteractionType {
         let playerGridPos = worldToGridPosition(player.position)
         let wagonGridPos = wagon.getGridPosition()
@@ -1238,7 +1235,8 @@ class GameScene: SKScene {
     
     private func debugCoordinateConversion() {
         if let playerPos = player?.position,
-           let wagon = wagons.first {
+           let wagon = wagons.first
+        {
             let playerGrid = worldToGridPosition(playerPos)
             let wagonGrid = wagon.getGridPosition()
             
@@ -1481,7 +1479,6 @@ class GameScene: SKScene {
         }
     }
 
-    
     func handleFollowingWagonMovement(_ wagon: WagonObstacle) {
         let wagonDirection = wagon.getCurrentDirection()
         
@@ -1551,7 +1548,7 @@ class GameScene: SKScene {
         
         // Use normal player speed
         let baseSpeed = getPlayerSpeedFactor()
-        let baseDuration = baseMoveDeuration / baseSpeed
+        let baseDuration = baseMoveDeuration/baseSpeed
         let moveDuration = (willBeOnHole || isUnderHoleSlowdown) ? baseDuration * 2.0 : baseDuration
         
         // Use smoother movement with calculated timing
@@ -1641,7 +1638,7 @@ class GameScene: SKScene {
         playerFollowingWagon = false
         
         // Unblock all wagons and ensure they can move
-        wagons.forEach { wagon in
+        for wagon in wagons {
             wagon.setBlocked(false, reason: "All interactions cleared")
             wagon.resumeNormalMovement()
         }
@@ -1649,12 +1646,11 @@ class GameScene: SKScene {
         print("All wagon interactions cleared")
     }
 
-    
     private func isPositionWithinBounds(_ position: CGPoint) -> Bool {
         let mazePixelWidth = CGFloat(mazeWidth) * gridSize
         let mazePixelHeight = CGFloat(mazeHeight) * gridSize
-        let offsetX = (size.width - mazePixelWidth) / 2
-        let offsetY = (size.height - mazePixelHeight) / 2
+        let offsetX = (size.width - mazePixelWidth)/2
+        let offsetY = (size.height - mazePixelHeight)/2
         
         let mazeMinX = offsetX + gridSize/2
         let mazeMaxX = offsetX + mazePixelWidth - gridSize/2
@@ -1662,7 +1658,7 @@ class GameScene: SKScene {
         let mazeMaxY = offsetY + mazePixelHeight - gridSize/2
         
         return position.x >= mazeMinX && position.x <= mazeMaxX &&
-               position.y >= mazeMinY && position.y <= mazeMaxY
+            position.y >= mazeMinY && position.y <= mazeMaxY
     }
     
     // Update the canMove method to handle wagon interactions:
@@ -1675,8 +1671,8 @@ class GameScene: SKScene {
         
         let mazePixelWidth = CGFloat(mazeWidth) * gridSize
         let mazePixelHeight = CGFloat(mazeHeight) * gridSize
-        let offsetX = (size.width - mazePixelWidth) / 2
-        let offsetY = (size.height - mazePixelHeight) / 2
+        let offsetX = (size.width - mazePixelWidth)/2
+        let offsetY = (size.height - mazePixelHeight)/2
         
         let mazeMinX = offsetX + gridSize/2 // Add buffer to prevent going out of bounds
         let mazeMaxX = offsetX + mazePixelWidth - gridSize/2
@@ -1758,7 +1754,6 @@ class GameScene: SKScene {
         return true
     }
     
-    
     // Helper method to check if player can move away from wagon
     // Helper method to check if player can move away from wagon
     private func canMoveAwayFromWagon(wagon: WagonObstacle, direction: MoveDirection, future: CGPoint) -> Bool {
@@ -1807,19 +1802,19 @@ class GameScene: SKScene {
         
         let mazePixelWidth = CGFloat(mazeWidth) * gridSize
         let mazePixelHeight = CGFloat(mazeHeight) * gridSize
-        let offsetX = (size.width - mazePixelWidth) / 2
-        let offsetY = (size.height - mazePixelHeight) / 2
+        let offsetX = (size.width - mazePixelWidth)/2
+        let offsetY = (size.height - mazePixelHeight)/2
         
-        let playerGridX = Int((player.position.x - offsetX) / gridSize)
-        let playerGridY = Int((player.position.y - offsetY) / gridSize)
+        let playerGridX = Int((player.position.x - offsetX)/gridSize)
+        let playerGridY = Int((player.position.y - offsetY)/gridSize)
         
         var itemsToCollect: [Int] = []
         var heartsToCollect: [HeartNode] = []
         
         // Check for item collection (items are on walls, so check adjacent positions)
         for (index, item) in items.enumerated() {
-            let itemGridX = Int((item.position.x - offsetX) / gridSize)
-            let itemGridY = Int((item.position.y - offsetY) / gridSize)
+            let itemGridX = Int((item.position.x - offsetX)/gridSize)
+            let itemGridY = Int((item.position.y - offsetY)/gridSize)
             
             let deltaX = playerGridX - itemGridX
             let deltaY = playerGridY - itemGridY
@@ -1833,8 +1828,8 @@ class GameScene: SKScene {
         
         // Check for heart collection (hearts are on roads, so check same position or very close)
         for heart in hearts {
-            let heartGridX = Int((heart.position.x - offsetX) / gridSize)
-            let heartGridY = Int((heart.position.y - offsetY) / gridSize)
+            let heartGridX = Int((heart.position.x - offsetX)/gridSize)
+            let heartGridY = Int((heart.position.y - offsetY)/gridSize)
             
             let deltaX = playerGridX - heartGridX
             let deltaY = playerGridY - heartGridY
@@ -1867,9 +1862,14 @@ class GameScene: SKScene {
         stopPlayerMovement()
         clearInputState()
         
+        GameCenterManager.shared.gotAllGreen()
+        GameCenterManager.shared.completeLevel(level)
         level += 1
         levelLabel.text = "Level: \(level)"
-
+        if allItemsCollectedWhileGreen == true {
+            GameCenterManager.shared.gotAllGreen()
+        }
+        
         // Show level complete message
         let label = SKLabelNode(fontNamed: "LuckiestGuy-Regular")
         label.text = "Level Complete!"
@@ -1939,16 +1939,16 @@ class GameScene: SKScene {
     func updateObstacleReferences() {
         let mazePixelWidth = CGFloat(mazeWidth) * gridSize
         let mazePixelHeight = CGFloat(mazeHeight) * gridSize
-        let offsetX = (size.width - mazePixelWidth) / 2
-        let offsetY = (size.height - mazePixelHeight) / 2
+        let offsetX = (size.width - mazePixelWidth)/2
+        let offsetY = (size.height - mazePixelHeight)/2
         let mazeOffset = CGPoint(x: offsetX, y: offsetY)
         
         // Update all obstacle references
-        cats.forEach { cat in
+        for cat in cats {
             cat.updateMaze(currentMaze, offset: mazeOffset)
         }
         
-        wagons.forEach { wagon in
+        for wagon in wagons {
             wagon.updateMaze(currentMaze, offset: mazeOffset)
             wagon.updatePlayerSpeedFactor(getPlayerSpeedFactor())
         }
@@ -2071,7 +2071,7 @@ class GameScene: SKScene {
             // Toggle SFX - Special handling needed
             if node.name == "sfxToggle" || node.parent?.name == "sfxToggle" {
                 let sound = SKAction.playSoundFileNamed("select.wav", waitForCompletion: false)
-                self.run(sound)
+                run(sound)
                 
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
                     self.pauseNode?.toggleSetting(named: "soundEffectsEnabled")
@@ -2082,7 +2082,7 @@ class GameScene: SKScene {
             // Toggle Haptics
             if node.name == "hapticsToggle" || node.parent?.name == "hapticsToggle" {
                 let sound = SKAction.playSoundFileNamed("select.wav", waitForCompletion: false)
-                self.run(sound)
+                run(sound)
                 
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
                     self.pauseNode?.toggleSetting(named: "hapticsEnabled")
@@ -2093,7 +2093,7 @@ class GameScene: SKScene {
             // Toggle Music
             if node.name == "musicToggle" || node.parent?.name == "musicToggle" {
                 let sound = SKAction.playSoundFileNamed("select.wav", waitForCompletion: false)
-                self.run(sound)
+                run(sound)
                 
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
                     self.pauseNode?.toggleSetting(named: "musicEnabled")
@@ -2123,7 +2123,6 @@ class GameScene: SKScene {
         }
     }
 
-    
     func setupHoles(maze: [[Int]], offsetX: CGFloat, offsetY: CGFloat) {
         // Use level-based hole count
         let numberOfHoles = getHoleCount()
@@ -2253,6 +2252,10 @@ class GameScene: SKScene {
             guard index < items.count else { continue }
             
             let item = items[index]
+            if item.category != .green {
+                allItemsCollectedWhileGreen = false
+            }
+
             let points = item.category.points * 10 * level
             totalPoints += points
             
@@ -2277,6 +2280,7 @@ class GameScene: SKScene {
         }
         
         score += totalPoints
+        ScoreManager.shared.updateScore(score)
         scoreLabel.text = "Score: \(score)"
         
         // Play sound on collection
@@ -2327,11 +2331,11 @@ class GameScene: SKScene {
         // Calculate maze offset to center it
         let mazePixelWidth = CGFloat(mazeWidth) * gridSize
         let mazePixelHeight = CGFloat(mazeHeight) * gridSize
-        let offsetX = (size.width - mazePixelWidth) / 2
-        let offsetY = (size.height - mazePixelHeight) / 2
+        let offsetX = (size.width - mazePixelWidth)/2
+        let offsetY = (size.height - mazePixelHeight)/2
         
         for row in stride(from: currentMaze.count - 2, to: 0, by: -1) {
-            for col in 1 ..< currentMaze[row].count {
+            for col in 1..<currentMaze[row].count {
                 if currentMaze[row][col] == 0 {
                     let pos = CGPoint(
                         x: offsetX + CGFloat(col) * gridSize + gridSize/2,
@@ -2372,7 +2376,6 @@ class GameScene: SKScene {
         }
     }
 
-
     func hidePauseMenu() {
         pauseNode?.removeFromParent()
         pauseNode = nil
@@ -2406,7 +2409,6 @@ class GameScene: SKScene {
         }
     }
 
-
     func hideGameOver() {
         gameOverNode?.removeFromParent()
         gameOverNode = nil
@@ -2414,7 +2416,7 @@ class GameScene: SKScene {
     }
     
     func goToTitleScene() {
-        if let view = self.view {
+        if let view = view {
             let transition = SKTransition.fade(withDuration: 0.5)
             let mainMenuScene = TitleScene(size: CGSize(width: UIScreen.main.bounds.width, height: UIScreen.main.bounds.height))
             mainMenuScene.scaleMode = .aspectFill
@@ -2432,12 +2434,14 @@ extension GameScene: SKPhysicsContactDelegate {
         // Check for player-item collision
         if a.categoryBitMask == PlayerNode.category && b.categoryBitMask == ItemNode.categoryBitMask {
             if let itemNode = b.node as? ItemNode,
-               let index = items.firstIndex(of: itemNode) {
+               let index = items.firstIndex(of: itemNode)
+            {
                 collectMultipleItems(at: [index])
             }
         } else if b.categoryBitMask == PlayerNode.category && a.categoryBitMask == ItemNode.categoryBitMask {
             if let itemNode = a.node as? ItemNode,
-               let index = items.firstIndex(of: itemNode) {
+               let index = items.firstIndex(of: itemNode)
+            {
                 collectMultipleItems(at: [index])
             }
         }
@@ -2455,20 +2459,21 @@ extension GameScene: SKPhysicsContactDelegate {
         
         // Check for player-cat collision (handled by physics collision)
         if (a.categoryBitMask == PlayerNode.category && b.categoryBitMask == CatObstacle.categoryBitMask) ||
-            (b.categoryBitMask == PlayerNode.category && a.categoryBitMask == CatObstacle.categoryBitMask) {
+            (b.categoryBitMask == PlayerNode.category && a.categoryBitMask == CatObstacle.categoryBitMask)
+        {
             print("Player collided with cat - movement blocked")
         }
         
         // Check for player-wagon contact (handle immediately but only when not moving)
         if !isMoving {
-            if (a.categoryBitMask == PlayerNode.category && b.categoryBitMask == WagonObstacle.categoryBitMask) {
+            if a.categoryBitMask == PlayerNode.category && b.categoryBitMask == WagonObstacle.categoryBitMask {
                 if let wagonNode = b.node as? WagonObstacle {
                     let interactionType = checkIndividualWagonCollision(wagonNode)
                     if interactionType != .playerClear {
                         handleWagonInteraction(wagonNode, interactionType)
                     }
                 }
-            } else if (b.categoryBitMask == PlayerNode.category && a.categoryBitMask == WagonObstacle.categoryBitMask) {
+            } else if b.categoryBitMask == PlayerNode.category && a.categoryBitMask == WagonObstacle.categoryBitMask {
                 if let wagonNode = a.node as? WagonObstacle {
                     let interactionType = checkIndividualWagonCollision(wagonNode)
                     if interactionType != .playerClear {
@@ -2498,6 +2503,7 @@ private func getOppositeDirection(_ direction: MoveDirection) -> MoveDirection {
     case .right: return .left
     }
 }
+
 // MARK: - MoveDirection Extension
 
 extension MoveDirection {
@@ -2525,10 +2531,10 @@ enum PlayerRelativePosition {
 }
 
 // MARK: - Immediate Font Fix Extension
+
 // Add this to fix all your font issues at once
 
 extension SKLabelNode {
-    
     // Helper to set LuckiestGuy font with automatic fallback
     func setLuckiestGuyFont(size: CGFloat) {
         // Try multiple possible font names for LuckiestGuy
@@ -2544,7 +2550,7 @@ extension SKLabelNode {
         for fontName in possibleFontNames {
             if UIFont(name: fontName, size: size) != nil {
                 self.fontName = fontName
-                self.fontSize = size
+                fontSize = size
                 fontFound = true
                 print("✅ Using font: \(fontName)")
                 break
@@ -2553,18 +2559,18 @@ extension SKLabelNode {
         
         if !fontFound {
             // Fallback to system font
-            self.fontName = "Helvetica-Bold"
-            self.fontSize = size
+            fontName = "Helvetica-Bold"
+            fontSize = size
             print("❌ LuckiestGuy not found, using Helvetica-Bold fallback")
         }
     }
 }
 
 // MARK: - Quick Fix for GameScene
+
 // Replace your font usage with these:
 
 extension GameScene {
-    
     func createLabelFixed(text: String, position: CGPoint, fontSize: CGFloat = 20) -> SKLabelNode {
         let label = SKLabelNode()
         label.text = text
@@ -2586,7 +2592,7 @@ extension GameScene {
         
         // Calculate positions for 3 elements (removed health from text labels)
         let scoreX = margin + 100
-        let levelX = margin + (availableWidth * (0.5 -  0.075))
+        let levelX = margin + (availableWidth * (0.5 - 0.075))
         let highScoreX = margin + (availableWidth * 0.85)
         
         // Create labels with LuckiestGuy font
@@ -2671,8 +2677,8 @@ extension GameScene {
 }
 
 // MARK: - Fix Existing Labels (call this after creating labels)
+
 extension GameScene {
-    
     func fixAllExistingFonts() {
         // Fix any existing labels that aren't showing correct font
         for child in children {
@@ -2693,10 +2699,10 @@ extension GameScene {
 }
 
 // MARK: - Font Debugging Helper
+
 // Add this to your GameScene or any view controller to debug fonts
 
 extension GameScene {
-    
     // Call this in didMove(to view:) to debug font issues
     func debugFonts() {
         print("=== FONT DEBUGGING ===")
@@ -2766,8 +2772,8 @@ extension GameScene {
 }
 
 // MARK: - Fixed Label Creation Methods
+
 extension GameScene {
-    
 //    func createLabel(text: String, position: CGPoint) -> SKLabelNode {
 //        return createLabelWithFont(text: text, fontSize: 20, position: position)
 //    }
