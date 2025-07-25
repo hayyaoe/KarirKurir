@@ -3,6 +3,7 @@
 //  KarirKurir
 //
 
+import GameKit
 import SwiftUI
 
 @main
@@ -13,8 +14,10 @@ struct KarirKurirApp: App {
             "hapticsEnabled": true,
             "musicEnabled": true
         ])
+
+        GameCenterManager.shared.setupGameCenterWithScoreSync()
     }
-    
+
     var body: some Scene {
         WindowGroup {
             ContentView()

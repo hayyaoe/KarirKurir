@@ -27,4 +27,16 @@ class ScoreManager: ObservableObject {
         }
         print(highScore)
     }
+
+    func syncHighScoreFromGameCenter() {
+        GameCenterManager.shared.fetchHighScoreFromLeaderboard(leaderboardID: "karirKurirHighScore") { [weak self] gameCenterScore in
+            DispatchQueue.main.async {
+                // Update high score jika Game Center score lebih tinggi
+                if gameCenterScore > self?.highScore ?? 0 {
+                    self?.highScore = gameCenterScore
+                    print("High score updated from Game Center: \(gameCenterScore)")
+                }
+            }
+        }
+    }
 }
