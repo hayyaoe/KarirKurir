@@ -26,6 +26,10 @@ class ItemNode: SKSpriteNode {
     // Callback to notify the scene when the timer expires
     var onTimerExpired: (() -> Void)?
     
+    // PAUSE FUNCTIONALITY
+//    private var isPaused: Bool = false
+    private var pausedAt: Date?
+    
     init(size: CGSize, initialTime: Int) {
         self.remainingTime = initialTime
         self.initialTime = initialTime
@@ -42,12 +46,49 @@ class ItemNode: SKSpriteNode {
         fatalError("init(coder:) has not been implemented")
     }
     
+    // MARK: - Pause/Resume Methods
+    
+    func pauseTimer() {
+        guard !isPaused else { return }
+        
+        isPaused = true
+        pausedAt = Date()
+        countdownTimer?.invalidate()
+        countdownTimer = nil
+        
+        // Pause visual animations
+        self.removeAllActions()
+        chatBubble?.removeAllActions()
+        progressBarFill?.removeAllActions()
+        
+        print("ItemNode timer paused with \(remainingTime) seconds remaining")
+    }
+    
+    func resumeTimer() {
+        guard isPaused else { return }
+        
+        isPaused = false
+        pausedAt = nil
+        
+        // Resume countdown
+        startCountdown()
+        
+        // Resume visual animations
+        setupVisualAnimations()
+        
+        print("ItemNode timer resumed with \(remainingTime) seconds remaining")
+    }
+    
     private func setupVisuals() {
+        setupVisualAnimations()
+    }
+    
+    private func setupVisualAnimations() {
         // Add a subtle pulse animation
         let scaleUp = SKAction.scale(to: 1.1, duration: 0.5)
         let scaleDown = SKAction.scale(to: 1.0, duration: 0.5)
         let pulse = SKAction.repeatForever(SKAction.sequence([scaleUp, scaleDown]))
-        run(pulse)
+        run(pulse, withKey: "pulseAnimation")
     }
     
     private func setupChatBubbleTimer() {
@@ -86,11 +127,17 @@ class ItemNode: SKSpriteNode {
     }
     
     private func startCountdown() {
+        // Don't start if paused
+        guard !isPaused else { return }
+        
         // The timer closure now safely unwraps self.
         countdownTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
             // Safely unwrap self. If self is nil (because the node was deallocated),
             // the code inside the guard will not execute, preventing a crash.
             guard let self = self else { return }
+            
+            // Don't update if paused
+            guard !self.isPaused else { return }
             
             // Now that we have a strong reference to self, we can safely call the instance method.
             self.updateTimer()

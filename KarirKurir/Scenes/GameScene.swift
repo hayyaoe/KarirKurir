@@ -67,6 +67,7 @@ class GameScene: SKScene {
     var scoreLabel: SKLabelNode!
     var levelLabel: SKLabelNode!
     var healthLabel: SKLabelNode!
+    var heartSprites: [SKSpriteNode] = [] // Array to hold heart sprites
     var swipeInstructionNode: SKSpriteNode! // New instruction node
     
     // MARK: - Constants
@@ -105,11 +106,11 @@ class GameScene: SKScene {
     
     func getItemTimer() -> Int {
         if level <= 5 {
-            return Int.random(in: 36...45)
+            return Int.random(in: 25...32)
         } else if level <= 10 {
-            return Int.random(in: 26...35)
+            return Int.random(in: 17...24)
         } else {
-            return Int.random(in: 16...25)
+            return Int.random(in: 9...16)
         }
     }
     
@@ -169,6 +170,7 @@ class GameScene: SKScene {
         
         // Setup input controller instead of swipe gestures
         setupInputController()
+        setupBackground()
         
         currentMaze = getMazeLayout(for: level)
         
@@ -179,7 +181,8 @@ class GameScene: SKScene {
         setupMaze(maze: currentMaze)
         
         // Setup UI and instruction screen
-        setupUI()
+        debugFonts()
+        setupUIWithFixedFonts()
         showSwipeInstruction()
         
         playMusicIfEnabled(named: "HeatleyBros - HeatleyBros I - 13 8 Bit Summer", on: self)
@@ -245,7 +248,7 @@ class GameScene: SKScene {
         
         // Create the swipe instruction image
         swipeInstructionNode = SKSpriteNode(imageNamed: "swipeToRide") // Use your image name
-        swipeInstructionNode.size = CGSize(width: 287, height: 168)
+        swipeInstructionNode.size = CGSize(width: 278, height: 233)
         swipeInstructionNode.position = CGPoint(x: size.width/2, y: size.height/2)
         swipeInstructionNode.zPosition = 1001
         swipeInstructionNode.name = "swipeInstruction"
@@ -349,38 +352,103 @@ class GameScene: SKScene {
         print("Player setup at position: \(position)")
     }
     
-    func setupUI() {
-        // Position UI elements relative to screen size
-        let margin: CGFloat = 20
-        scoreLabel = createLabel(text: "Score: 0", position: CGPoint(x: margin + 120, y: size.height - 50))
-        levelLabel = createLabel(text: "Level: 1", position: CGPoint(x: margin + 300, y: size.height - 50))
-        healthLabel = createLabel(text: "\(health)", position: CGPoint(x: margin + 400, y: size.height - 50))
-        let healthSprite = SKSpriteNode(imageNamed: "HealthIcon")
-        healthSprite.zPosition = 100
-        healthSprite.position = CGPoint(x: margin + 418, y: size.height - 42)
-        healthSprite.setScale(0.2)
-        if !gameStarted {
-            scoreLabel.zPosition = 1001
-            healthLabel.zPosition = 1001
-            levelLabel.zPosition = 1001
-        } else {
-            scoreLabel.zPosition = 10
-            healthLabel.zPosition = 10
-            levelLabel.zPosition = 10
+    func setupBackground() {
+            let tileSize = CGSize(width: gridSize, height: gridSize)
+
+            let mazePixelWidth = CGFloat(mazeWidth) * gridSize
+            let mazePixelHeight = CGFloat(mazeHeight) * gridSize
+            let offsetX = (size.width - mazePixelWidth)/2
+            let offsetY = (size.height - mazePixelHeight)/2
+
+            let extraTiles: CGFloat = 3
+
+            let minX = offsetX - extraTiles * gridSize
+            let maxX = offsetX + mazePixelWidth + extraTiles * gridSize
+            let minY = offsetY - extraTiles * gridSize
+            let maxY = offsetY + mazePixelHeight + extraTiles * gridSize
+
+            let columns = Int((maxX - minX)/gridSize)
+            let rows = Int((maxY - minY)/gridSize)
+
+            for row in 0 ..< rows {
+                for col in 0 ..< columns {
+                    let pos = CGPoint(
+                        x: minX + CGFloat(col) * gridSize + gridSize/2,
+                        y: minY + CGFloat(row) * gridSize + gridSize/2
+                    )
+
+                    let grass = SKSpriteNode(texture: SKTexture(imageNamed: "pathGrass"), size: tileSize)
+                    grass.position = pos
+                    grass.zPosition = -100
+                    addChild(grass)
+
+                    if Int.random(in: 0 ..< 10) == 0 {
+                        let tree = SKSpriteNode(texture: SKTexture(imageNamed: "pathTree"), size: tileSize)
+                        tree.position = pos
+                        tree.zPosition = -90
+                        addChild(tree)
+                    }
+                }
+            }
         }
     
+    func setupUI() {
+        // Calculate positions for space-between layout
+        let margin: CGFloat = 40
+        let availableWidth = size.width - (margin * 2)
+        let yPosition = size.height - 50
+        
+        // Create high score label
+        var highScoreLabel: SKLabelNode!
+        
+        // Calculate positions for 4 elements with space-between
+        let scoreX = margin
+        let highScoreX = margin + (availableWidth * 0.33)
+        let levelX = margin + (availableWidth * 0.66)
+        let healthX = size.width - margin - 80 // Leave space for health icon
+        
+        // Create all labels with LuckiestGuy font
+        scoreLabel = createLabel(text: "Score: 0", position: CGPoint(x: scoreX, y: yPosition))
+        highScoreLabel = createLabel(text: "Best: \(ScoreManager.shared.highScore)", position: CGPoint(x: highScoreX, y: yPosition))
+        levelLabel = createLabel(text: "Level: 1", position: CGPoint(x: levelX, y: yPosition))
+        healthLabel = createLabel(text: "\(health)", position: CGPoint(x: healthX, y: yPosition))
+        
+        // Store high score label for updates
+        highScoreLabel.name = "highScoreLabel"
+        
+        // Health icon positioned next to health label
+        let healthSprite = SKSpriteNode(imageNamed: "HealthIcon")
+        healthSprite.zPosition = 100
+        healthSprite.position = CGPoint(x: healthX + 25, y: yPosition + 8)
+        healthSprite.setScale(0.2)
+        
+        // Set z-positions based on game state
+        if !gameStarted {
+            scoreLabel.zPosition = 1001
+            highScoreLabel.zPosition = 1001
+            levelLabel.zPosition = 1001
+            healthLabel.zPosition = 1001
+            healthSprite.zPosition = 1001
+        } else {
+            scoreLabel.zPosition = 100
+            highScoreLabel.zPosition = 100
+            levelLabel.zPosition = 100
+            healthLabel.zPosition = 100
+            healthSprite.zPosition = 100
+        }
         
         addChild(healthSprite)
         addChild(scoreLabel)
+        addChild(highScoreLabel)
         addChild(levelLabel)
         addChild(healthLabel)
         
+        // Pause button remains in top right
         let pauseButton = SKSpriteNode(imageNamed: "PauseButton")
         pauseButton.name = "pauseButton"
         pauseButton.position = CGPoint(x: size.width - 120, y: size.height - 50)
         pauseButton.zPosition = 100
         addChild(pauseButton)
-
     }
     
     func createLabel(text: String, position: CGPoint) -> SKLabelNode {
@@ -389,7 +457,14 @@ class GameScene: SKScene {
         label.fontSize = 20
         label.fontColor = .white
         label.position = position
+        
         return label
+    }
+    
+    func updateHighScoreDisplay() {
+        if let highScoreLabel = childNode(withName: "highScoreLabel") as? SKLabelNode {
+            highScoreLabel.text = "Best: \(ScoreManager.shared.highScore)"
+        }
     }
     
     func setupMaze(maze: [[Int]]) {
@@ -635,7 +710,7 @@ class GameScene: SKScene {
         
         // Spawn regular items
         for (row, col) in itemGridPositions {
-            let randomTime = Int.random(in: 16...25)
+            let randomTime = getItemTimer()
             let itemSize = CGSize(width: gridSize * 0.6, height: gridSize * 0.6)
             let item = ItemNode(size: itemSize, initialTime: randomTime)
             
@@ -644,7 +719,7 @@ class GameScene: SKScene {
                 y: offsetY + CGFloat(currentMaze.count - row - 1) * gridSize + gridSize/2
             )
             item.position = itemPosition
-            item.zPosition = 15
+            item.zPosition = 101
             
             item.physicsBody?.categoryBitMask = ItemNode.categoryBitMask
             item.physicsBody?.contactTestBitMask = PlayerNode.category
@@ -663,6 +738,7 @@ class GameScene: SKScene {
                 if self.items.isEmpty && !self.isTransitioning {
                     self.checkLevelCompletion()
                 }
+                
             }
             
             addChild(item)
@@ -710,12 +786,13 @@ class GameScene: SKScene {
         if health >= maxHealth {
             // Give score instead - twice the green category points
             let greenCategoryPoints = ItemCategory.green.points
-            let bonusScore = greenCategoryPoints * 2 * 10 * level // Same formula as items but double green points
+            let bonusScore = greenCategoryPoints * 2 * 10 * level
             score += bonusScore
             scoreLabel.text = "Score: \(score)"
-            
+            updateHighScoreDisplay()
+
             // Show bonus score message
-            let label = SKLabelNode(fontNamed: "Arial-BoldMT")
+            let label = SKLabelNode(fontNamed: "LuckiestGuy-Regular")
             label.text = "+\(bonusScore) (Max Hearts!)"
             label.fontSize = 20
             label.fontColor = .systemYellow
@@ -733,10 +810,10 @@ class GameScene: SKScene {
         } else {
             // Increase health
             health += 1
-            healthLabel.text = "❤️ \(health)"
+            updateHeartDisplay() // Update visual hearts instead of text
             
             // Show health gain message
-            let label = SKLabelNode(fontNamed: "Arial-BoldMT")
+            let label = SKLabelNode(fontNamed: "LuckiestGuy-Regular")
             label.text = "+1 Life! ❤️"
             label.fontSize = 22
             label.fontColor = .systemRed
@@ -1898,7 +1975,7 @@ class GameScene: SKScene {
         // If any items expired, lose health
         if expiredItems > 0 {
             health -= 1
-            healthLabel.text = "\(health)"
+            updateHeartDisplay() // Update visual hearts instead of text
             
             // Show health loss feedback
             showHealthLossMessage()
@@ -1923,7 +2000,7 @@ class GameScene: SKScene {
     
     func showHealthLossMessage() {
         let label = SKLabelNode(fontNamed: "LuckiestGuy-Regular")
-        label.text = "Health Lost! ❤️ \(health)"
+        label.text = "Health Lost!"
         label.fontSize = 22
         label.fontColor = .red
         label.position = CGPoint(x: size.width/2, y: size.height/2)
@@ -1965,6 +2042,14 @@ class GameScene: SKScene {
                         self.hideGameOver()
                         self.restartGame()
                     }
+                }
+                
+                if node.name == "quitButton" || node.parent?.name == "quitButton" {
+                    playSoundIfEnabled(named: "select.wav", on: self)
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                        self.goToTitleScene()
+                    }
+                    return
                 }
             }
             return
@@ -2124,7 +2209,11 @@ class GameScene: SKScene {
         gameStarted = false
         waitingForFirstSwipe = true
         playerFollowingWagon = false
-        heartGridPosition = nil // Clear heart position
+        heartGridPosition = nil
+        
+        // Clear heart sprites
+        heartSprites.forEach { $0.removeFromParent() }
+        heartSprites.removeAll()
         
         // Remove all children and start fresh
         removeAllChildren()
@@ -2136,11 +2225,21 @@ class GameScene: SKScene {
         holes.removeAll()
         cats.removeAll()
         wagons.removeAll()
-        hearts.removeAll() // Clear hearts
+        hearts.removeAll()
         itemGridPositions.removeAll()
         
         // Restart the game
         didMove(to: view!)
+    }
+    
+    private func addItemToGame(_ item: ItemNode) {
+        addChild(item)
+        items.append(item)
+        
+        // If game is currently paused, pause this new item too
+        if isPaused {
+            item.pauseTimer()
+        }
     }
     
     func collectMultipleItems(at indices: [Int]) {
@@ -2262,6 +2361,9 @@ class GameScene: SKScene {
     
     func showPauseMenu() {
         isPaused = true
+        
+        pauseAllItems()
+        
         if pauseNode == nil {
             pauseNode = PauseMenuNode()
             pauseNode?.position = CGPoint(x: frame.midX, y: frame.midY)
@@ -2275,6 +2377,24 @@ class GameScene: SKScene {
         pauseNode?.removeFromParent()
         pauseNode = nil
         isPaused = false
+        
+        resumeAllItems()
+    }
+    
+    // MARK: - Item Pause/Resume Methods
+
+    private func pauseAllItems() {
+        for item in items {
+            item.pauseTimer()
+        }
+        print("Paused \(items.count) item timers")
+    }
+
+    private func resumeAllItems() {
+        for item in items {
+            item.resumeTimer()
+        }
+        print("Resumed \(items.count) item timers")
     }
     
     func showGameOver() {
@@ -2402,4 +2522,295 @@ extension MoveDirection {
 
 enum PlayerRelativePosition {
     case front, behind, side
+}
+
+// MARK: - Immediate Font Fix Extension
+// Add this to fix all your font issues at once
+
+extension SKLabelNode {
+    
+    // Helper to set LuckiestGuy font with automatic fallback
+    func setLuckiestGuyFont(size: CGFloat) {
+        // Try multiple possible font names for LuckiestGuy
+        let possibleFontNames = [
+            "LuckiestGuy-Regular",
+            "LuckiestGuy",
+            "Luckiest Guy",
+            "LuckiestGuyRegular"
+        ]
+        
+        var fontFound = false
+        
+        for fontName in possibleFontNames {
+            if UIFont(name: fontName, size: size) != nil {
+                self.fontName = fontName
+                self.fontSize = size
+                fontFound = true
+                print("✅ Using font: \(fontName)")
+                break
+            }
+        }
+        
+        if !fontFound {
+            // Fallback to system font
+            self.fontName = "Helvetica-Bold"
+            self.fontSize = size
+            print("❌ LuckiestGuy not found, using Helvetica-Bold fallback")
+        }
+    }
+}
+
+// MARK: - Quick Fix for GameScene
+// Replace your font usage with these:
+
+extension GameScene {
+    
+    func createLabelFixed(text: String, position: CGPoint, fontSize: CGFloat = 20) -> SKLabelNode {
+        let label = SKLabelNode()
+        label.text = text
+        label.setLuckiestGuyFont(size: fontSize)
+        label.position = position
+        label.fontColor = .white
+        return label
+    }
+    
+    // Fix your current setupUI method by replacing it with this:
+    func setupUIWithFixedFonts() {
+        // Calculate positions for space-between layout
+        let margin: CGFloat = 40
+        let availableWidth = size.width - (margin * 2)
+        let yPosition = size.height - 35
+        
+        // Create high score label
+        var highScoreLabel: SKLabelNode!
+        
+        // Calculate positions for 3 elements (removed health from text labels)
+        let scoreX = margin + 100
+        let levelX = margin + (availableWidth * (0.5 -  0.075))
+        let highScoreX = margin + (availableWidth * 0.85)
+        
+        // Create labels with LuckiestGuy font
+        scoreLabel = createLabel(text: "Score: 0", position: CGPoint(x: scoreX, y: yPosition))
+        highScoreLabel = createLabel(text: "High Score: \(ScoreManager.shared.highScore)", position: CGPoint(x: highScoreX, y: yPosition))
+        levelLabel = createLabel(text: "Level: 1", position: CGPoint(x: levelX, y: yPosition))
+        
+        // Store high score label for updates
+        highScoreLabel.name = "highScoreLabel"
+        
+        // Setup heart-based health display
+        setupHeartHealthDisplay()
+        
+        // Set z-positions based on game state
+        if !gameStarted {
+            scoreLabel.zPosition = 1001
+            highScoreLabel.zPosition = 1001
+            levelLabel.zPosition = 1001
+        } else {
+            scoreLabel.zPosition = 100
+            highScoreLabel.zPosition = 100
+            levelLabel.zPosition = 100
+        }
+        
+        addChild(scoreLabel)
+        addChild(highScoreLabel)
+        addChild(levelLabel)
+        
+        // Pause button remains in top right
+        let pauseButton = SKSpriteNode(imageNamed: "PauseButton")
+        pauseButton.name = "pauseButton"
+        pauseButton.position = CGPoint(x: size.width - 60, y: size.height - 40)
+        pauseButton.zPosition = 100
+        addChild(pauseButton)
+    }
+    
+    func setupHeartHealthDisplay() {
+        // Clear existing heart sprites
+        heartSprites.forEach { $0.removeFromParent() }
+        heartSprites.removeAll()
+        
+        let heartSize: CGFloat = 24 // Size of each heart
+        let heartSpacing: CGFloat = 26 // Space between hearts
+        let totalWidth = CGFloat(maxHealth) * heartSpacing - (heartSpacing - heartSize)
+        let startX = size.width - 280 - totalWidth // Position from right side
+        let heartY = size.height - 27
+        
+        // Create heart sprites for max health
+        for i in 0..<maxHealth {
+            let heartSprite = SKSpriteNode(imageNamed: "HealthIcon")
+            heartSprite.size = CGSize(width: heartSize, height: heartSize)
+            heartSprite.position = CGPoint(x: startX + (CGFloat(i) * heartSpacing), y: heartY)
+            
+            // Set z-position based on game state
+            if !gameStarted {
+                heartSprite.zPosition = 1001
+            } else {
+                heartSprite.zPosition = 100
+            }
+            
+            heartSprites.append(heartSprite)
+            addChild(heartSprite)
+        }
+        
+        // Update display to show current health
+        updateHeartDisplay()
+    }
+    
+    func updateHeartDisplay() {
+        for (index, heartSprite) in heartSprites.enumerated() {
+            if index < health {
+                // Show filled heart (red)
+                heartSprite.texture = SKTexture(imageNamed: "HealthIcon")
+                heartSprite.alpha = 1.0
+            } else {
+                // Show empty heart (gray) - replace "HealthIconGray" with your gray heart image name
+                heartSprite.texture = SKTexture(imageNamed: "HealthGrayIcon")
+                heartSprite.alpha = 1.0
+            }
+        }
+    }
+}
+
+// MARK: - Fix Existing Labels (call this after creating labels)
+extension GameScene {
+    
+    func fixAllExistingFonts() {
+        // Fix any existing labels that aren't showing correct font
+        for child in children {
+            if let label = child as? SKLabelNode {
+                let currentText = label.text
+                let currentSize = label.fontSize
+                let currentPosition = label.position
+                let currentColor = label.fontColor
+                
+                // Re-apply the font
+                label.setLuckiestGuyFont(size: currentSize)
+                label.fontColor = currentColor
+                
+                print("Fixed font for label: \(currentText ?? "NO TEXT")")
+            }
+        }
+    }
+}
+
+// MARK: - Font Debugging Helper
+// Add this to your GameScene or any view controller to debug fonts
+
+extension GameScene {
+    
+    // Call this in didMove(to view:) to debug font issues
+    func debugFonts() {
+        print("=== FONT DEBUGGING ===")
+        
+        // 1. Check if font file is loaded
+        let fontNames = UIFont.familyNames.sorted()
+        print("All available font families:")
+        for family in fontNames {
+            let fonts = UIFont.fontNames(forFamilyName: family)
+            if family.lowercased().contains("luckiest") || !fonts.isEmpty {
+                print("Family: \(family)")
+                for font in fonts {
+                    print("  - \(font)")
+                }
+            }
+        }
+        
+        // 2. Test font loading
+        if let font = UIFont(name: "LuckiestGuy-Regular", size: 20) {
+            print("✅ LuckiestGuy-Regular loaded successfully")
+            print("Font family name: \(font.familyName)")
+            print("Font display name: \(font.fontName)")
+        } else {
+            print("❌ LuckiestGuy-Regular failed to load")
+            
+            // Try alternative names
+            let alternativeNames = [
+                "LuckiestGuy",
+                "Luckiest Guy",
+                "LuckiestGuyRegular",
+                "luckiest-guy",
+                "luckiest_guy"
+            ]
+            
+            for name in alternativeNames {
+                if let font = UIFont(name: name, size: 20) {
+                    print("✅ Found font with name: \(name)")
+                    print("Real font name: \(font.fontName)")
+                    break
+                }
+            }
+        }
+        
+        print("=== END FONT DEBUG ===")
+    }
+    
+    // Helper method to create labels with proper font fallback
+    func createLabelWithFont(text: String, fontSize: CGFloat, position: CGPoint) -> SKLabelNode {
+        let label = SKLabelNode()
+        label.text = text
+        label.fontSize = fontSize
+        label.position = position
+        
+        // Try to set the custom font, fallback to system font
+        if UIFont(name: "LuckiestGuy-Regular", size: fontSize) != nil {
+            label.fontName = "LuckiestGuy-Regular"
+            print("✅ Using LuckiestGuy-Regular for: \(text)")
+        } else {
+            // Fallback to bold system font
+            label.fontName = "Helvetica-Bold"
+            label.fontColor = .yellow // Make it obvious it's using fallback
+            print("❌ Fallback font used for: \(text)")
+        }
+        
+        return label
+    }
+}
+
+// MARK: - Fixed Label Creation Methods
+extension GameScene {
+    
+//    func createLabel(text: String, position: CGPoint) -> SKLabelNode {
+//        return createLabelWithFont(text: text, fontSize: 20, position: position)
+//    }
+    
+    // Update your existing setupUI method
+    func setupUIFixed() {
+        // Position UI elements relative to screen size
+        let margin: CGFloat = 20
+        
+        // Use the fixed font method
+        scoreLabel = createLabelWithFont(text: "Score: 0", fontSize: 20, position: CGPoint(x: margin + 120, y: size.height - 50))
+        scoreLabel.fontColor = .white
+        
+        levelLabel = createLabelWithFont(text: "Level: 1", fontSize: 20, position: CGPoint(x: margin + 300, y: size.height - 50))
+        levelLabel.fontColor = .white
+        
+        healthLabel = createLabelWithFont(text: "3", fontSize: 20, position: CGPoint(x: margin + 400, y: size.height - 50))
+        healthLabel.fontColor = .white
+        
+        let healthSprite = SKSpriteNode(imageNamed: "HealthIcon")
+        healthSprite.zPosition = 100
+        healthSprite.position = CGPoint(x: margin + 418, y: size.height - 42)
+        healthSprite.setScale(0.2)
+        
+        if !gameStarted {
+            scoreLabel.zPosition = 1001
+            healthLabel.zPosition = 1001
+            levelLabel.zPosition = 1001
+        } else {
+            scoreLabel.zPosition = 10
+            healthLabel.zPosition = 10
+            levelLabel.zPosition = 10
+        }
+        
+        addChild(healthSprite)
+        addChild(scoreLabel)
+        addChild(levelLabel)
+        addChild(healthLabel)
+        
+        let pauseButton = SKSpriteNode(imageNamed: "PauseButton")
+        pauseButton.name = "pauseButton"
+        pauseButton.position = CGPoint(x: size.width - 120, y: size.height - 50)
+        pauseButton.zPosition = 100
+        addChild(pauseButton)
+    }
 }

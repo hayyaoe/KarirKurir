@@ -47,7 +47,7 @@ class GameOverNode: SKNode {
         scoreText.text = "Final Score: \(score)"
         scoreText.fontSize = 28
         scoreText.fontColor = .white
-        scoreText.position = CGPoint(x: 0, y: 0)
+        scoreText.position = CGPoint(x: 0, y: -10)
         scoreText.zPosition = 102
         modal.addChild(scoreText)
         
@@ -56,7 +56,7 @@ class GameOverNode: SKNode {
         levelText.text = "Level Reached: \(level)"
         levelText.fontSize = 28
         levelText.fontColor = .white
-        levelText.position = CGPoint(x: 0, y: -50)
+        levelText.position = CGPoint(x: 0, y: -60)
         levelText.zPosition = 102
         modal.addChild(levelText)
         

@@ -11,6 +11,7 @@ class TitleScene: SKScene {
     var player: SKSpriteNode
     var cat: SKSpriteNode
     var bakso: SKSpriteNode
+    var titleImage: SKSpriteNode // Add title image property
     let tileSize: CGFloat = 40
     let scrollSpeed: CGFloat = 100.0
     let playButton: SKSpriteNode
@@ -45,23 +46,38 @@ class TitleScene: SKScene {
         let walkBakso = SKAction.animate(with: framesBakso, timePerFrame: 0.15)
         bakso.run(SKAction.repeatForever(walkBakso))
         
+        // Add title image
+        titleImage = SKSpriteNode(imageNamed: "KarirKurirLogo") // Replace with your actual image name
+        titleImage.position = CGPoint(x: size.width / 2, y: size.height - 90) // Position at top center
+        titleImage.zPosition = 5 // Above other game elements
+        titleImage.setScale(0.9) // Adjust scale as needed
+        
+        // Add a subtle glow/pulsing effect to the title
+        let scaleUp = SKAction.scale(to: 1, duration: 3.0)
+        let scaleDown = SKAction.scale(to: 0.8, duration: 3.0)
+        let pulse = SKAction.repeatForever(SKAction.sequence([scaleUp, scaleDown]))
+        titleImage.run(pulse)
+        
         playButton = SKSpriteNode(imageNamed: "PlayButton")
         playButton.name = "playButton"
         playButton.zPosition = 101
         playButton.position = CGPoint(x: 420, y: 80)
         playButton.setScale(0.45)
         
-        let pauseButton = SKSpriteNode(imageNamed: "SettingButton")
-        pauseButton.name = "settingButton"
-        pauseButton.position = CGPoint(x: size.width - 120, y: size.height - 50)
-        pauseButton.zPosition = 100
+        let settingButton = SKSpriteNode(imageNamed: "SettingButton")
+        settingButton.name = "settingButton"
+        settingButton.position = CGPoint(x: size.width - 60, y: size.height - 40)
+        settingButton.zPosition = 100
 
         super.init(size: size)
+        
+        // Add all elements to the scene
         addChild(player)
         addChild(cat)
         addChild(bakso)
+        addChild(titleImage) // Add the title image
         addChild(playButton)
-        addChild(pauseButton)
+        addChild(settingButton)
         setupScrollingBackground()
         
         playMusicIfEnabled(named: "HeatleyBros - HeatleyBros I - 06 8 Bit Love", on: self)
@@ -123,13 +139,6 @@ class TitleScene: SKScene {
             wallTile5.zPosition = 1
             addChild(wallTile5)
             wallTiles.append(wallTile5)
-
-//            let wallTile6 = SKSpriteNode(imageNamed:)
-//            wallTile6.scale(to: CGSize(width: tileSize * 2, height: tileSize * 2))
-//            wallTile6.position = CGPoint(x: CGFloat(i) * wallTile6.size.width, y: wallTile5.position.y - tileSize * 2)
-//            wallTile6.zPosition = 1
-//            addChild(wallTile6)
-//            wallTiles.append(wallTile6)
         }
     }
 
@@ -169,7 +178,7 @@ class TitleScene: SKScene {
                 return
             }
             
-            // Pause Button
+            // Setting Button
             if node.name == "settingButton" || node.parent?.name == "settingButton" {
                 playSoundIfEnabled(named: "select.wav", on: self)
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
@@ -213,7 +222,7 @@ class TitleScene: SKScene {
                 return
             }
             
-            // Resume Game
+            // Close Settings
             if node.name == "closeButton" || node.parent?.name == "closeButton" {
                 playSoundIfEnabled(named: "select.wav", on: self)
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
@@ -221,7 +230,6 @@ class TitleScene: SKScene {
                 }
                 return
             }
-            
         }
     }
     
@@ -233,7 +241,6 @@ class TitleScene: SKScene {
             addChild(settingNode!)
         }
     }
-
 
     func hideSettingMenu() {
         settingNode?.removeFromParent()

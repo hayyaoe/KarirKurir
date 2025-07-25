@@ -19,16 +19,28 @@ class PlayerNode: SKSpriteNode {
     private var animationFrames: [FacingDirection: [SKTexture]] = [:]
     private var slowdownIndicator: SKSpriteNode?
     private var isShowingSlowdownEffect: Bool = false
+    
+    // Separate sprite node for visual offset
+    private var visualSprite: SKSpriteNode!
+    private let yOffsetAmount: CGFloat = 8.0
 
     init(tileSize: CGSize) {
         // Load textures once for default
         let defaultTexture = SKTexture(imageNamed: "courierRight1")
         let playerSize = CGSize(width: tileSize.width, height: tileSize.height)
 
-        super.init(texture: defaultTexture, color: .clear, size: playerSize)
+        super.init(texture: nil, color: .clear, size: playerSize)
+        
+        // Create visual sprite as child node
+        visualSprite = SKSpriteNode(texture: defaultTexture, size: playerSize)
+        visualSprite.position = CGPoint.zero
+        addChild(visualSprite)
 
         setupTextures()
         setupPhysics(size: playerSize)
+        
+        // Apply initial visual offset since player starts facing right
+        applyVisualYOffset()
     }
 
     @available(*, unavailable)
@@ -62,14 +74,15 @@ class PlayerNode: SKSpriteNode {
         
         isShowingSlowdownEffect = true
         
-        // Create slowdown indicator
+        // Create slowdown indicator around the visual sprite
         slowdownIndicator = SKSpriteNode(color: .red, size: CGSize(width: size.width * 1.3, height: size.height * 1.3))
         slowdownIndicator?.alpha = 0.6
-        slowdownIndicator?.zPosition = -1 // Behind player
+        slowdownIndicator?.zPosition = -1 // Behind visual sprite
         slowdownIndicator?.name = "slowdownIndicator"
         
         if let indicator = slowdownIndicator {
-            addChild(indicator)
+            // Add to visual sprite so it follows the offset
+            visualSprite.addChild(indicator)
             
             // Create flashing animation
             let fadeOut = SKAction.fadeAlpha(to: 0.2, duration: 0.3)
@@ -106,22 +119,23 @@ class PlayerNode: SKSpriteNode {
     }
     
     func moveWithCustomDuration(to targetPosition: CGPoint, duration: TimeInterval, completion: @escaping () -> Void) {
-            // Remove any existing actions first
-            removeAllActions()
-            
-            updateDirection(to: targetPosition)
-            animateWalk()
+        // Remove any existing actions from both main node and visual sprite
+        removeAllActions()
+        visualSprite.removeAllActions()
+        
+        updateDirection(to: targetPosition)
+        animateWalk()
 
-            let moveAction = SKAction.move(to: targetPosition, duration: duration)
-            moveAction.timingMode = .easeInEaseOut
+        // Move the main node to the exact target position (keeps collision detection correct)
+        let moveAction = SKAction.move(to: targetPosition, duration: duration)
+        moveAction.timingMode = .easeInEaseOut
 
-            let done = SKAction.run {
-                completion()
-            }
-
-            run(SKAction.sequence([moveAction, done]))
+        let done = SKAction.run {
+            completion()
         }
-    
+
+        run(SKAction.sequence([moveAction, done]), withKey: "moveAction")
+    }
 
     private func updateDirection(to target: CGPoint) {
         let dx = target.x - position.x
@@ -137,8 +151,36 @@ class PlayerNode: SKSpriteNode {
     private func animateWalk() {
         guard let frames = animationFrames[facing] else { return }
 
-        let animation = SKAction.animate(with: frames, timePerFrame: moveDuration / Double(frames.count))
+        let frameTimePerFrame = moveDuration / Double(frames.count)
+        let animation = SKAction.animate(with: frames, timePerFrame: frameTimePerFrame)
         let repeatAction = SKAction.repeatForever(animation)
-        run(repeatAction, withKey: "walkAnimation")
+        
+        // Apply animation to the visual sprite
+        visualSprite.run(repeatAction, withKey: "walkAnimation")
+        
+        // Apply visual Y offset for left/right sprites
+        applyVisualYOffset()
+    }
+    
+    private func applyVisualYOffset() {
+        // Remove any existing offset animation
+        visualSprite.removeAction(forKey: "visualOffset")
+        
+        if facing == .left || facing == .right || facing == .down || facing == .up{
+            // Move visual sprite up for left/right animations
+            let offsetAction = SKAction.moveTo(y: yOffsetAmount, duration: 0.0)
+            visualSprite.run(offsetAction, withKey: "visualOffset")
+            print("Applied visual Y offset for \(facing.rawValue)")
+        } else {
+            // Reset visual sprite position for up/down animations
+            let resetAction = SKAction.moveTo(y: 0, duration: 0.1)
+            visualSprite.run(resetAction, withKey: "visualOffset")
+            print("Reset visual Y offset for \(facing.rawValue)")
+        }
+    }
+    
+    override func removeAllActions() {
+        super.removeAllActions()
+        visualSprite?.removeAllActions()
     }
 }
