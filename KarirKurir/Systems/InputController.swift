@@ -29,6 +29,11 @@ class InputController {
     private var gestureStartTime: TimeInterval = 0
     private var lastUpdateTime: TimeInterval = 0
     
+    // NEW: Level transition handling
+    private var isPostLevelTransition: Bool = false
+    private var levelTransitionTime: TimeInterval = 0
+    private let postLevelTransitionGracePeriod: TimeInterval = 2.0 // 2 seconds of extra responsiveness
+    
     init(view: SKView) {
         setupGestures(view: view)
     }
@@ -142,11 +147,14 @@ class InputController {
         var adaptiveMinDistance = baseMinimumDistance
         var adaptiveMinVelocity = baseMinimumVelocity
         
-        // Make first swipe extra responsive
-        if isFirstSwipe {
-            adaptiveMinDistance *= 0.6  // 60% of normal threshold
-            adaptiveMinVelocity *= 0.7  // 70% of normal threshold
-            print("First swipe - using reduced thresholds: dist=\(adaptiveMinDistance), vel=\(adaptiveMinVelocity)")
+        // NEW: Extra responsiveness after level transitions
+        let isInGracePeriod = isPostLevelTransition && (CACurrentMediaTime() - levelTransitionTime) < postLevelTransitionGracePeriod
+        
+        // Make first swipe OR post-level transition extra responsive
+        if isFirstSwipe || isInGracePeriod {
+            adaptiveMinDistance *= 0.5  // 50% of normal threshold
+            adaptiveMinVelocity *= 0.6  // 60% of normal threshold
+            print("Enhanced responsiveness mode - using reduced thresholds: dist=\(adaptiveMinDistance), vel=\(adaptiveMinVelocity)")
         }
         
         // ENHANCED: Speed-independent detection
@@ -211,8 +219,8 @@ class InputController {
         let absX = abs(primaryX)
         let absY = abs(primaryY)
         
-        // Adaptive bias - less bias for first swipe to be more responsive
-        let bias: CGFloat = isFirstSwipe ? 1.1 : 1.3
+        // Adaptive bias - less bias for first swipe or post-level transition to be more responsive
+        let bias: CGFloat = (isFirstSwipe || isInGracePeriod) ? 1.05 : 1.3
         
         if absX > absY * bias {
             return primaryX > 0 ? .right : .left
@@ -230,6 +238,9 @@ class InputController {
     
     // ENHANCED: Smarter direction update logic
     private func shouldUpdateDirection(to newDirection: MoveDirection) -> Bool {
+        let currentTime = CACurrentMediaTime()
+        let isInGracePeriod = isPostLevelTransition && (currentTime - levelTransitionTime) < postLevelTransitionGracePeriod
+        
         // Always allow first direction
         guard let lastDirection = lastNotifiedDirection else {
             print("First direction allowed: \(newDirection.description)")
@@ -239,6 +250,12 @@ class InputController {
         // Don't change if it's the same direction
         if newDirection == lastDirection {
             return false
+        }
+        
+        // NEW: Be extra permissive during grace period after level transition
+        if isInGracePeriod {
+            print("Post-level transition grace period - allowing direction change: \(lastDirection.description) -> \(newDirection.description)")
+            return true
         }
         
         // ENHANCED: More responsive direction changes
@@ -280,7 +297,7 @@ class InputController {
                (verticalDirections.contains(direction1) && horizontalDirections.contains(direction2))
     }
     
-    // Reset for game restart - ENHANCED
+    // ENHANCED: Reset for game restart and level transitions
     func reset() {
         lastNotifiedDirection = nil
         currentDirection = nil
@@ -288,6 +305,56 @@ class InputController {
         gestureStartTime = 0
         lastUpdateTime = 0
         lastTranslation = .zero
+        
+        // Reset gesture recognizer states
+        panGesture.isEnabled = false
+        tapGesture.isEnabled = false
+        
+        // Re-enable after a brief delay to ensure clean state
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak self] in
+            self?.panGesture.isEnabled = true
+            self?.tapGesture.isEnabled = true
+        }
+        
         print("InputController reset - ready for responsive input")
+    }
+    
+    // NEW: Method to call when starting a new level
+    func resetForLevelTransition() {
+        // Do a full reset
+        reset()
+        
+        // Mark as post-level transition for enhanced responsiveness
+        isPostLevelTransition = true
+        levelTransitionTime = CACurrentMediaTime()
+        
+        print("InputController reset for level transition - enhanced responsiveness active")
+        
+        // Clear the post-level transition flag after grace period
+        DispatchQueue.main.asyncAfter(deadline: .now() + postLevelTransitionGracePeriod) { [weak self] in
+            self?.isPostLevelTransition = false
+            print("Post-level transition grace period ended")
+        }
+    }
+    
+    // NEW: Force clear any stuck gesture states
+    func forceResetGestures() {
+        // Cancel any ongoing gestures
+        if panGesture.state == .began || panGesture.state == .changed {
+            panGesture.isEnabled = false
+            panGesture.isEnabled = true
+        }
+        
+        if tapGesture.state == .began || tapGesture.state == .changed {
+            tapGesture.isEnabled = false
+            tapGesture.isEnabled = true
+        }
+        
+        // Reset internal state
+        lastTranslation = .zero
+        gestureStartTime = 0
+        lastUpdateTime = 0
+        
+        print("Force reset gestures completed")
     }
 }

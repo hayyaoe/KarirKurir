@@ -176,8 +176,9 @@ class GameScene: SKScene {
         // Calculate grid size based on screen dimensions
         calculateOptimalGridSize()
         
-        // Setup input controller instead of swipe gestures
+        // Setup input controller FIRST and ensure it's clean
         setupInputController()
+        
         setupBackground()
         
         currentMaze = getMazeLayout(for: level)
@@ -201,10 +202,20 @@ class GameScene: SKScene {
     
     func setupInputController() {
         guard let view = view else { return }
+        
+        // Remove existing input controller if any
+        inputController = nil
+        
+        // Create new input controller
         inputController = InputController(view: view)
         inputController?.onDirectionChange = { [weak self] direction in
             self?.handleDirectionChange(direction)
         }
+        
+        // Ensure it starts in a clean state
+        inputController?.reset()
+        
+        print("InputController setup complete and reset")
     }
     
     func handleDirectionChange(_ direction: MoveDirection?) {
@@ -234,13 +245,16 @@ class GameScene: SKScene {
         // Hide instruction Screen
         hideSwipeInstruction()
         
+        // FIXED: Reset input controller for game start
+        inputController?.resetForLevelTransition()
+        
         // Now spawn the items
         spawnItems()
         
         // Start player movement
         startPlayerMovement()
         
-        print("Game Started!")
+        print("Game Started with enhanced input responsiveness!")
     }
     
     func showSwipeInstruction() {
@@ -1634,7 +1648,7 @@ class GameScene: SKScene {
         let label = SKLabelNode(fontNamed: "LuckiestGuy-Regular")
         label.text = "Level Complete!"
         label.fontSize = 25
-        label.fontColor = .yellow
+        label.fontColor = .white
         label.position = CGPoint(x: size.width/2, y: size.height/2 + 100)
         addChild(label)
         label.run(.sequence([.fadeOut(withDuration: 1.5), .removeFromParent()]))
@@ -1670,6 +1684,9 @@ class GameScene: SKScene {
         isOnHole = false
         holeSlowdownEndTime = 0
         player.forceResetSlowdownEffect()
+        
+        // FIXED: Reset input controller with enhanced responsiveness for level transition
+        inputController?.resetForLevelTransition()
         
         currentMaze = nextMaze.isEmpty ? getMazeLayout(for: level) : nextMaze
         setupMaze(maze: currentMaze)
@@ -1939,6 +1956,9 @@ class GameScene: SKScene {
         holeSlowdownEndTime = 0
         player?.forceResetSlowdownEffect()
         
+        // FIXED: Reset input controller completely
+        inputController?.reset()
+        
         // Reset game state
         score = 0
         level = 1
@@ -2039,7 +2059,7 @@ class GameScene: SKScene {
         let label = SKLabelNode(fontNamed: "LuckiestGuy-Regular")
         label.text = "+\(totalPoints)"
         label.fontSize = 24
-        label.fontColor = sortedIndices.count > 1 ? .yellow : .green
+        label.fontColor = sortedIndices.count > 1 ? .blue : .green
         label.position = CGPoint(x: player.position.x, y: player.position.y + 40)
         addChild(label)
         
@@ -2089,9 +2109,10 @@ class GameScene: SKScene {
         // Clear hole effect
         player.hideSlowdownEffect()
         
-        // No more wagon interaction states to clear
+        // FIXED: Reset input controller to prevent stuck directions
+        inputController?.reset()
         
-        print("Input state cleared")
+        print("Input state cleared with controller reset")
     }
     
     func findSafeStartingPosition() {
