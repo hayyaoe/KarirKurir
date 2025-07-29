@@ -92,30 +92,36 @@ class GameScene: SKScene {
     }
     
     func getItemCount() -> Int {
-        if level <= 5 {
+        if level > 0 && level <= 5 {
             return 3
-        } else if level <= 10 {
-            return 6
+        } else if level > 5 && level <= 10 {
+            return 5
+        } else if level > 10 && level <= 20 {
+            return 7
         } else {
             return 10
         }
     }
     
     func getItemTimer() -> Int {
-        if level <= 5 {
+        if level > 0 && level <= 20 {
             return Int.random(in: 24...25)
-        } else if level <= 10 {
+        } else if level > 20 && level <= 50 {
             return Int.random(in: 17...24)
         } else {
-            return Int.random(in: 9...16)
+            return Int.random(in: 12...16)
         }
     }
     
     func getHoleCount() -> Int {
-        if level <= 5 {
+        if level > 0 && level <= 5 {
             return 1
-        } else if level <= 10 {
+        } else if level > 5 && level <= 10 {
+            return 2
+        } else if level > 10 && level <= 20 {
             return 3
+        } else if level > 20 && level <= 50{
+            return 4
         } else {
             return 5
         }
@@ -137,22 +143,28 @@ class GameScene: SKScene {
     }
     
     func getCatCount() -> Int {
-        if level <= 3 {
+        if level > 0 && level <= 5 {
             return 0
-        } else if level <= 7 {
+        } else if level > 5 && level <= 10 {
             return 1
-        } else {
+        } else if level > 10 && level <= 20 {
             return 2
+        } else if level > 20 && level <= 50 {
+            return 3
+        } else {
+            return 5
         }
     }
     
     func getWagonCount() -> Int {
-        if level <= 5 {
-            return 1
-        } else if level <= 20 {
+        if level > 0 && level <= 10 {
             return 0
-        } else {
+        } else if level > 10 && level <= 20 {
             return 1
+        } else if level > 20 && level <= 50{
+            return 2
+        } else {
+            return 3
         }
     }
     
@@ -560,7 +572,7 @@ class GameScene: SKScene {
         
         // Setup obstacles after game starts AND after walls are created
         if gameStarted {
-            setupObstacles(maze: maze, offsetX: offsetX, offsetY: offsetY)
+//            setupObstacles(maze: maze, offsetX: offsetX, offsetY: offsetY)
         }
         
         nextMaze = getMazeLayout(for: level + 1)
