@@ -56,7 +56,8 @@ class GameScene: SKScene {
     var gameStarted: Bool = false // New state for game start
     var waitingForFirstSwipe: Bool = true // New state for first swipe
     
-    
+    var isIpad: Bool = false
+
     // MARK: - UI
     
     var scoreLabel: SKLabelNode!
@@ -64,7 +65,8 @@ class GameScene: SKScene {
     var healthLabel: SKLabelNode!
     var heartSprites: [SKSpriteNode] = [] // Array to hold heart sprites
     var swipeInstructionNode: SKSpriteNode! // New instruction node
-    
+    var highScoreLabel: SKLabelNode!
+
     // MARK: - Constants
     
     let playerSpeed: CGFloat = 100.0
@@ -242,7 +244,7 @@ class GameScene: SKScene {
         
         // Create the swipe instruction image
         swipeInstructionNode = SKSpriteNode(imageNamed: "swipeToRide") // Use your image name
-        swipeInstructionNode.size = CGSize(width: 278, height: 233)
+        swipeInstructionNode.size = CGSize(width: iPadHelper.shared.isIPad ? 500 : 278, height: iPadHelper.shared.isIPad ? 470 : 233)
         swipeInstructionNode.position = CGPoint(x: size.width/2, y: size.height/2)
         swipeInstructionNode.zPosition = 1001
         swipeInstructionNode.name = "swipeInstruction"
@@ -374,7 +376,7 @@ class GameScene: SKScene {
                 
                 // UPDATED: Use randomized grass texture for background
                 let grassVariant = Int.random(in: 1...19)
-                let grassTextureName = "pathGrass\(grassVariant)"
+                let grassTextureName = "pathGrass1"
                 let grass = SKSpriteNode(texture: SKTexture(imageNamed: grassTextureName), size: tileSize)
                 grass.position = pos
                 grass.zPosition = -100
@@ -400,9 +402,6 @@ class GameScene: SKScene {
         let margin: CGFloat = 40
         let availableWidth = size.width - (margin * 2)
         let yPosition = size.height - 50
-        
-        // Create high score label
-        var highScoreLabel: SKLabelNode!
         
         // Calculate positions for 4 elements with space-between
         let scoreX = margin
@@ -451,13 +450,14 @@ class GameScene: SKScene {
         pauseButton.name = "pauseButton"
         pauseButton.position = CGPoint(x: size.width - 120, y: size.height - 50)
         pauseButton.zPosition = 100
+        pauseButton.setScale(iPadHelper.shared.isIPad ? 1.5 : 1.0)
         addChild(pauseButton)
     }
     
     func createLabel(text: String, position: CGPoint) -> SKLabelNode {
         let label = SKLabelNode(fontNamed: "LuckiestGuy-Regular")
         label.text = text
-        label.fontSize = 20
+        label.fontSize = iPadHelper.shared.isIPad ? 30 : 20
         label.fontColor = .white
         label.position = position
         
@@ -1075,7 +1075,6 @@ class GameScene: SKScene {
         return roadPositions.randomElement()
     }
     
-    
     private func makeWagonEscapeFromPlayer(_ wagon: WagonObstacle, playerPosition: PlayerRelativePosition) {
         let wagonGridPos = wagon.getGridPosition()
         let playerGridPos = worldToGridPosition(player.position)
@@ -1145,7 +1144,7 @@ class GameScene: SKScene {
         // This is a simple heuristic - you could make it more sophisticated
         let seed = row * 1000 + col
         let random = (seed * 9301 + 49297) % 233280
-        let normalizedRandom = Double(random) / 233280.0
+        let normalizedRandom = Double(random)/233280.0
         
         // Assuming roughly 50% chance of pathGrass vs pathTree in original randomWallAsset()
         return normalizedRandom > 0.5
@@ -1199,7 +1198,6 @@ class GameScene: SKScene {
             print("Wagon direction: \(wagon.getCurrentDirection().description)")
         }
     }
-    
     
     // MARK: - Player Movement
     
@@ -1272,7 +1270,6 @@ class GameScene: SKScene {
             movePlayerToPosition(targetPosition)
         }
     }
-    
     
     // Helper method to get grid position in a direction
     private func getGridPositionInDirection(from gridPos: CGPoint, direction: MoveDirection) -> CGPoint {
@@ -1447,7 +1444,7 @@ class GameScene: SKScene {
         let mazeMaxY = offsetY + mazePixelHeight - gridSize/2
         
         return position.x >= mazeMinX && position.x <= mazeMaxX &&
-        position.y >= mazeMinY && position.y <= mazeMaxY
+            position.y >= mazeMinY && position.y <= mazeMaxY
     }
     
     func isPositionAccessibleToWagons(row: Int, col: Int) -> Bool {
@@ -1967,7 +1964,6 @@ class GameScene: SKScene {
         didMove(to: view!)
     }
     
-    
     private func addItemToGame(_ item: ItemNode) {
         addChild(item)
         items.append(item)
@@ -2164,6 +2160,7 @@ class GameScene: SKScene {
             gameOverNode = GameOverNode(score: score, level: level)
             gameOverNode?.position = CGPoint(x: frame.midX, y: frame.midY)
             gameOverNode?.zPosition = 100
+            gameOverNode?.setScale(iPadHelper.shared.isIPad ? 2.0 : 1.0)
             addChild(gameOverNode!)
         }
     }
@@ -2384,7 +2381,7 @@ extension GameScene {
         let heartSize: CGFloat = 24 // Size of each heart
         let heartSpacing: CGFloat = 26 // Space between hearts
         let totalWidth = CGFloat(maxHealth) * heartSpacing - (heartSpacing - heartSize)
-        let startX = size.width - 300 - totalWidth // Position from right side
+        let startX = size.width/2 // Position from right side
         let heartY = size.height - 27
         
         // Create heart sprites for max health

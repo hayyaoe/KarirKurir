@@ -18,11 +18,13 @@ class TitleScene: SKScene, GKGameCenterControllerDelegate {
     let scrollSpeed: CGFloat = 100.0
     let playButton: SKSpriteNode
 
+    var isIpad: Bool = false
+
     var pathTiles: [SKSpriteNode] = []
     var wallTiles: [SKSpriteNode] = []
 
     private var settingNode: SettingNode!
-    
+
     // Store texture variants for animated sprites
     private let catTextureVariant: Int
     private let wagonTextureVariant: Int
@@ -31,7 +33,7 @@ class TitleScene: SKScene, GKGameCenterControllerDelegate {
         // STEP 1: Initialize all stored properties FIRST
         catTextureVariant = Int.random(in: 1...4)
         wagonTextureVariant = Int.random(in: 1...2)
-        
+
         // Create sprites with basic textures (no animations yet)
         player = SKSpriteNode(imageNamed: "courierRight1")
         cat = SKSpriteNode(imageNamed: "obstacleCatRight1_\(catTextureVariant)")
@@ -39,17 +41,17 @@ class TitleScene: SKScene, GKGameCenterControllerDelegate {
         titleImage = SKSpriteNode(imageNamed: "KarirKurirLogo")
         playButton = SKSpriteNode(imageNamed: "PlayButton")
         leaderboardButton = SKSpriteNode(imageNamed: "LeaderboardButton")
-        
+
         // STEP 2: Call super.init() BEFORE any self references
         super.init(size: size)
-        
+
         // STEP 3: Now we can safely setup everything that uses 'self'
         setupSprites()
         setupButtons()
         setupScrollingBackground()
-        
+
         playMusicIfEnabled(named: "HeatleyBros - HeatleyBros I - 06 8 Bit Love", on: self)
-        
+
         print("TitleScene created with cat variant \(catTextureVariant) and wagon variant \(wagonTextureVariant)")
     }
 
@@ -57,26 +59,26 @@ class TitleScene: SKScene, GKGameCenterControllerDelegate {
     required init?(coder aDecoder: NSCoder) {
         fatalError("init(coder:) has not been implemented")
     }
-    
+
     // STEP 4: Setup methods that can safely use 'self'
     private func setupSprites() {
         // Setup player
         player.scale(to: CGSize(width: tileSize * 4, height: tileSize * 4))
         player.position = CGPoint(x: size.width / 2 + 25, y: size.height / 2)
         player.zPosition = 2
-        
+
         // Setup player animation
-        let frames = (1 ... 4).map { SKTexture(imageNamed: "courierRight\($0)") }
+        let frames = (1...4).map { SKTexture(imageNamed: "courierRight\($0)") }
         let walk = SKAction.animate(with: frames, timePerFrame: 0.15)
         player.run(SKAction.repeatForever(walk))
-        
+
         // Setup cat
         cat.scale(to: CGSize(width: tileSize * 2, height: tileSize * 2))
         cat.position = CGPoint(x: size.width / 2 + 5, y: size.height / 2 - 50)
         cat.zPosition = 3
-        
+
         // Setup cat animation with randomized texture variant
-        let framesCat = (1 ... 4).map { SKTexture(imageNamed: "obstacleCatRight\($0)_\(catTextureVariant)") }
+        let framesCat = (1...4).map { SKTexture(imageNamed: "obstacleCatRight\($0)_\(catTextureVariant)") }
         let walkCat = SKAction.animate(with: framesCat, timePerFrame: 0.15)
         cat.run(SKAction.repeatForever(walkCat))
 
@@ -84,50 +86,67 @@ class TitleScene: SKScene, GKGameCenterControllerDelegate {
         bakso.scale(to: CGSize(width: tileSize * 4, height: tileSize * 4))
         bakso.position = CGPoint(x: size.width / 2 - 120, y: size.height / 2)
         bakso.zPosition = 2
-        
+
         // Setup wagon animation with randomized texture variant
-        let framesBakso = (1 ... 4).map { SKTexture(imageNamed: "obstacleWagonRight\($0)_\(wagonTextureVariant)") }
+        let framesBakso = (1...4).map { SKTexture(imageNamed: "obstacleWagonRight\($0)_\(wagonTextureVariant)") }
         let walkBakso = SKAction.animate(with: framesBakso, timePerFrame: 0.15)
         bakso.run(SKAction.repeatForever(walkBakso))
 
         // Setup title image
-        titleImage.position = CGPoint(x: size.width / 2, y: size.height - 90)
+        titleImage.position = CGPoint(x: size.width / 2, y: size.height / 1.3)
         titleImage.zPosition = 5
-        titleImage.setScale(0.9)
+        titleImage.setScale(1.5)
 
         // Add title pulsing effect
-        let scaleUp = SKAction.scale(to: 1, duration: 3.0)
-        let scaleDown = SKAction.scale(to: 0.8, duration: 3.0)
+        let scaleUp = SKAction.scale(to: 1.5, duration: 3.0)
+        let scaleDown = SKAction.scale(to: 1.2, duration: 3.0)
         let pulse = SKAction.repeatForever(SKAction.sequence([scaleUp, scaleDown]))
         titleImage.run(pulse)
-        
+
         // Add all sprites to scene
         addChild(player)
         addChild(cat)
         addChild(bakso)
-        addChild(titleImage)
     }
-    
+
     private func setupButtons() {
+        if UIDevice.current.userInterfaceIdiom == .pad {
+            isIpad = true
+        }
+
         // Setup play button
         playButton.name = "playButton"
         playButton.zPosition = 101
-        playButton.position = CGPoint(x: 420, y: 80)
-        playButton.setScale(0.45)
+        playButton.position = CGPoint(x: size.width / 2, y: isIpad ? size.height / 5 : size.height / 6)
+        playButton.setScale(isIpad ? 0.7 : 0.45)
 
         // Setup setting button
         let settingButton = SKSpriteNode(imageNamed: "SettingButton")
         settingButton.name = "settingButton"
         settingButton.position = CGPoint(x: size.width - 60, y: size.height - 40)
         settingButton.zPosition = 100
+        settingButton.setScale(isIpad ? 1.5 : 1.0)
 
         // Setup leaderboard button
         leaderboardButton.name = "leaderboardButton"
         leaderboardButton.zPosition = 5
         leaderboardButton.scale(to: CGSize(width: 42, height: 42))
-        leaderboardButton.position = CGPoint(x: settingButton.position.x - 50, y: settingButton.position.y)
-        
+        leaderboardButton.position = CGPoint(x: settingButton.position.x - (isIpad ? 80 : 50), y: settingButton.position.y)
+        leaderboardButton.setScale(isIpad ? 1.5 : 1.0)
+
+        // Setup title image
+        titleImage.position = CGPoint(x: size.width / 2, y: size.height / 1.3)
+        titleImage.zPosition = 5
+        titleImage.setScale(isIpad ? 1.5 : 1.0)
+
+        // Add title pulsing effect
+        let scaleUp = SKAction.scale(to: isIpad ? 1.5 : 1.0, duration: 3.0)
+        let scaleDown = SKAction.scale(to: isIpad ? 1.3 : 0.8, duration: 3.0)
+        let pulse = SKAction.repeatForever(SKAction.sequence([scaleUp, scaleDown]))
+        titleImage.run(pulse)
+
         // Add buttons to scene
+        addChild(titleImage)
         addChild(playButton)
         addChild(settingButton)
         addChild(leaderboardButton)
@@ -140,16 +159,14 @@ class TitleScene: SKScene, GKGameCenterControllerDelegate {
     func setupScrollingBackground() {
         let numberOfTiles = Int(ceil(size.width / (tileSize * 2))) + 2
         for i in 0 ..< numberOfTiles {
-            // Use randomized path textures for background
-            let grassVariant = Int.random(in: 1...19)
             let treeVariant = Int.random(in: 1...6)
-            
             let options = [
                 "pathTree\(treeVariant)",
-                "pathGrass\(grassVariant)",
+                "pathGrass1",
+                "pathGrass1",
             ]
 
-            // Path
+            // Path (jalan utama)
             let pathTile = SKSpriteNode(imageNamed: "pathHorizontal")
             pathTile.scale(to: CGSize(width: tileSize * 2, height: tileSize * 2))
             pathTile.position = CGPoint(x: CGFloat(i) * pathTile.size.width, y: player.position.y - 30)
@@ -157,48 +174,35 @@ class TitleScene: SKScene, GKGameCenterControllerDelegate {
             addChild(pathTile)
             pathTiles.append(pathTile)
 
-            // Top wall tiles with randomized textures
-            let wallTile = SKSpriteNode(imageNamed: options.randomElement()!)
-            wallTile.scale(to: CGSize(width: tileSize * 2, height: tileSize * 2))
-            wallTile.position = CGPoint(x: CGFloat(i) * wallTile.size.width, y: pathTile.position.y + tileSize * 2)
-            wallTile.zPosition = 1
-            addChild(wallTile)
-            wallTiles.append(wallTile)
+            // --- Wall Tiles di atas Path ---
+            let upperTileCount = 8
+            var lastY = pathTile.position.y + tileSize * 2
+            for _ in 0 ..< upperTileCount {
+                let upperTile = SKSpriteNode(imageNamed: options.randomElement()!)
+                upperTile.scale(to: CGSize(width: tileSize * 2, height: tileSize * 2))
+                upperTile.position = CGPoint(x: CGFloat(i) * upperTile.size.width, y: lastY)
+                upperTile.zPosition = 1
+                addChild(upperTile)
+                wallTiles.append(upperTile)
+                lastY += tileSize * 2
+            }
 
-            let wallTile2 = SKSpriteNode(imageNamed: options.randomElement()!)
-            wallTile2.scale(to: CGSize(width: tileSize * 2, height: tileSize * 2))
-            wallTile2.position = CGPoint(x: CGFloat(i) * wallTile2.size.width, y: wallTile.position.y + tileSize * 2)
-            wallTile2.zPosition = 1
-            addChild(wallTile2)
-            wallTiles.append(wallTile2)
-
-            // Use grass for upper background
-            let grassVariant3 = Int.random(in: 1...4)
-            let wallTile3 = SKSpriteNode(imageNamed: "pathGrass\(grassVariant3)")
-            wallTile3.scale(to: CGSize(width: tileSize * 2, height: tileSize * 2))
-            wallTile3.position = CGPoint(x: CGFloat(i) * wallTile3.size.width, y: wallTile2.position.y + tileSize * 2)
-            wallTile3.zPosition = 1
-            addChild(wallTile3)
-            wallTiles.append(wallTile3)
-
-            // Bottom wall tiles with randomized textures
-            let grassVariant4 = Int.random(in: 1...4)
-            let wallTile4 = SKSpriteNode(imageNamed: "pathGrass\(grassVariant4)")
-            wallTile4.scale(to: CGSize(width: tileSize * 2, height: tileSize * 2))
-            wallTile4.position = CGPoint(x: CGFloat(i) * wallTile4.size.width, y: pathTile.position.y - tileSize * 2)
-            wallTile4.zPosition = 1
-            addChild(wallTile4)
-            wallTiles.append(wallTile4)
-
-            let wallTile5 = SKSpriteNode(imageNamed: options.randomElement()!)
-            wallTile5.scale(to: CGSize(width: tileSize * 2, height: tileSize * 2))
-            wallTile5.position = CGPoint(x: CGFloat(i) * wallTile5.size.width, y: wallTile4.position.y - tileSize * 2)
-            wallTile5.zPosition = 1
-            addChild(wallTile5)
-            wallTiles.append(wallTile5)
+            // --- Wall Tiles di bawah Path ---
+            let lowerTileCount = 8
+            var lowerY = pathTile.position.y - tileSize * 2
+            for j in 0 ..< lowerTileCount {
+                let imageName = (j == 0) ? "pathGrass" : options.randomElement()!
+                let lowerTile = SKSpriteNode(imageNamed: imageName)
+                lowerTile.scale(to: CGSize(width: tileSize * 2, height: tileSize * 2))
+                lowerTile.position = CGPoint(x: CGFloat(i) * lowerTile.size.width, y: lowerY)
+                lowerTile.zPosition = 1
+                addChild(lowerTile)
+                wallTiles.append(lowerTile)
+                lowerY -= tileSize * 2
+            }
         }
-        
-        print("TitleScene background setup with randomized textures")
+
+        print("TitleScene background setup with more wall tiles above")
     }
 
     override func update(_ currentTime: TimeInterval) {
@@ -210,19 +214,19 @@ class TitleScene: SKScene, GKGameCenterControllerDelegate {
             // Reset posisi tile jika keluar dari kiri layar
             if tile.position.x < -tile.size.width {
                 tile.position.x += tile.size.width * CGFloat(pathTiles.count)
-                
+
                 // Randomize the texture when tile resets position
                 if let spriteNode = tile as? SKSpriteNode {
                     // Check if this is a wall tile that should be randomized
                     if wallTiles.contains(spriteNode) {
-                        let grassVariant = Int.random(in: 1...19)
                         let treeVariant = Int.random(in: 1...6)
-                        
+
                         let newTextures = [
                             "pathTree\(treeVariant)",
-                            "pathGrass\(grassVariant)",
+                            "pathGrass1",
+                            "pathGrass1",
                         ]
-                        
+
                         let newTextureName = newTextures.randomElement()!
                         spriteNode.texture = SKTexture(imageNamed: newTextureName)
                     }
@@ -241,8 +245,8 @@ class TitleScene: SKScene, GKGameCenterControllerDelegate {
                 // Add button press effect
                 playButton.removeAllActions()
                 node.childNode(withName: "backgroundMusic")?.removeFromParent()
-                let pressDown = SKAction.scale(to: 0.35, duration: 0.1)
-                let pressUp = SKAction.scale(to: 0.45, duration: 0.1)
+                let pressDown = SKAction.scale(to: isIpad ? 0.7 : 0.35, duration: 0.1)
+                let pressUp = SKAction.scale(to: isIpad ? 0.6 : 0.45, duration: 0.1)
                 let sequence = SKAction.sequence([pressDown, pressUp])
 
                 playSoundIfEnabled(named: "select.wav", on: self)

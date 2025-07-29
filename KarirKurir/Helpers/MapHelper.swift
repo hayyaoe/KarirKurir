@@ -212,14 +212,24 @@ func spriteNameFor(tileType: PathTileType) -> String {
 func randomWallAsset() -> String {
     let grassVariant = Int.random(in: 1...19)
     let treeVariant = Int.random(in: 1...6)
-    
+
     let options = [
         "pathTree\(treeVariant)",
         "pathGrass\(grassVariant)"
     ]
-    
+
     let selectedAsset = options.randomElement()!
     print("Selected random wall asset: \(selectedAsset)")
+    return selectedAsset
+}
+
+func randomGrassAsset() -> String {
+    let options = [
+        "pathTree",
+        "pathGrass"
+    ]
+
+    let selectedAsset = options.randomElement()!
     return selectedAsset
 }
 
