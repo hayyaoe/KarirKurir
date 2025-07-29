@@ -36,16 +36,16 @@ class GameOverNode: SKNode {
                 
         // Create modal background
         let modal = SKSpriteNode(imageNamed: "GameOverBackground")
-        modal.zPosition = 100
         modal.name = "gameOverBackground"
-        modal.position = CGPoint(x: 0, y: 40)
+        modal.position = CGPoint(x: 0, y: 30)
+        modal.zPosition = 100
         modal.setScale(0.5)
         addChild(modal)
         
         // Final score
         let scoreText = SKLabelNode(fontNamed: "LuckiestGuy-Regular")
         scoreText.text = "Final Score: \(score)"
-        scoreText.fontSize = 28
+        scoreText.fontSize = 24
         scoreText.fontColor = .white
         scoreText.position = CGPoint(x: 0, y: -10)
         scoreText.zPosition = 102
@@ -54,7 +54,7 @@ class GameOverNode: SKNode {
         // Level reached
         let levelText = SKLabelNode(fontNamed: "LuckiestGuy-Regular")
         levelText.text = "Level Reached: \(level)"
-        levelText.fontSize = 28
+        levelText.fontSize = 24
         levelText.fontColor = .white
         levelText.position = CGPoint(x: 0, y: -60)
         levelText.zPosition = 102
@@ -65,19 +65,19 @@ class GameOverNode: SKNode {
         retryButton.name = "retryButton"
         retryButton.position = CGPoint(x: -100, y: -120)
         retryButton.zPosition = 103
-        retryButton.setScale(0.95)
+        retryButton.setScale(0.85)
         addChild(retryButton)
         
         let quitButton = SKSpriteNode(imageNamed: "QuitButtonGameOver")
         quitButton.name = "quitButton"
         quitButton.position = CGPoint(x: 100, y: -120)
         quitButton.zPosition = 103
-        quitButton.setScale(0.95)
+        quitButton.setScale(0.85)
         addChild(quitButton)
         
         // Animate modal appearance
         modal.setScale(0)
-        let scaleAction = SKAction.scale(to: 1.0, duration: 0.3)
+        let scaleAction = SKAction.scale(to: 0.9, duration: 0.3)
         scaleAction.timingMode = .easeOut
         modal.run(scaleAction)
     }

@@ -6,7 +6,7 @@
 //
 
 func getMazeLayout(for level: Int) -> [[Int]] {
-    return generateRandomMaze(width: 20, height: 11, complexity: min(level, 5))
+    return generateRandomMaze(width: 20, height: iPadHelper.shared.isIPad ? 15 : 11, complexity: min(level, 5))
 }
 
 func generateRandomMaze(width: Int, height: Int, complexity: Int) -> [[Int]] {
@@ -210,20 +210,22 @@ func spriteNameFor(tileType: PathTileType) -> String {
 }
 
 func randomWallAsset() -> String {
+    let grassVariant = Int.random(in: 1...19)
+    let treeVariant = Int.random(in: 1...6)
+    
     let options = [
-        "pathTree",
-        "pathGrass",
-//        "warung1",
-//        "warung2",
-//        "warung3",
-//        "house\(Int.random(in: 1 ... 3))"
+        "pathTree\(treeVariant)",
+        "pathGrass\(grassVariant)"
     ]
-    return options.randomElement()!
+    
+    let selectedAsset = options.randomElement()!
+    print("Selected random wall asset: \(selectedAsset)")
+    return selectedAsset
 }
 
 func randomHouseAsset() -> String {
-    let options = [
-        "house\(Int.random(in: 1 ... 10))"
-    ]
-    return options.randomElement()!
+    let houseNumber = Int.random(in: 1...10)
+    let selectedAsset = "house\(houseNumber)"
+    print("Selected random house asset: \(selectedAsset)")
+    return selectedAsset
 }

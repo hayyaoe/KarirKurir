@@ -18,6 +18,9 @@ class CatObstacle: SKSpriteNode {
     private var maze: [[Int]] = []
     private var mazeOffset: CGPoint = .zero
     
+    // Store the randomized variant number for this cat (1-4)
+    private let textureVariant: Int
+    
     // States
     private var idleTimer: Timer?
     private var moveTimer: Timer?
@@ -30,8 +33,11 @@ class CatObstacle: SKSpriteNode {
         self.maze = maze
         self.mazeOffset = mazeOffset
         
+        // Randomize texture variant (1-4) for this cat instance
+        self.textureVariant = Int.random(in: 1...4)
+        
         // Load default texture
-        let defaultTexture = SKTexture(imageNamed: "obstacleCatRight1")
+        let defaultTexture = SKTexture(imageNamed: "obstacleCatRight1_\(textureVariant)")
         let catSize = CGSize(width: gridSize * 0.8, height: gridSize * 0.8)
         
         super.init(texture: defaultTexture, color: .clear, size: catSize)
@@ -39,6 +45,8 @@ class CatObstacle: SKSpriteNode {
         setupTextures()
         setupPhysics()
         startBehavior()
+        
+        print("Cat created with texture variant \(textureVariant)")
     }
     
     required init?(coder aDecoder: NSCoder) {
@@ -47,10 +55,12 @@ class CatObstacle: SKSpriteNode {
     
     private func setupTextures() {
         // Load animation frames for each direction
-        animationFrames[.down] = (1...4).map { SKTexture(imageNamed: "obstacleCatDown\($0)") }
-        animationFrames[.up] = (1...4).map { SKTexture(imageNamed: "obstacleCatUp\($0)") }
-        animationFrames[.left] = (1...4).map { SKTexture(imageNamed: "obstacleCatLeft\($0)") }
-        animationFrames[.right] = (1...4).map { SKTexture(imageNamed: "obstacleCatRight\($0)") }
+        animationFrames[.down] = (1...4).map { SKTexture(imageNamed: "obstacleCatDown\($0)_\(textureVariant)") }
+        animationFrames[.up] = (1...4).map { SKTexture(imageNamed: "obstacleCatUp\($0)_\(textureVariant)") }
+        animationFrames[.left] = (1...4).map { SKTexture(imageNamed: "obstacleCatLeft\($0)_\(textureVariant)") }
+        animationFrames[.right] = (1...4).map { SKTexture(imageNamed: "obstacleCatRight\($0)_\(textureVariant)") }
+        
+        print("Cat loaded textures for variant \(textureVariant)")
     }
     
     private func setupPhysics() {

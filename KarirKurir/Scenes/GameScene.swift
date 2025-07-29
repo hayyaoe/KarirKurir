@@ -15,8 +15,8 @@ class GameScene: SKScene {
     
     private var pauseNode: PauseMenuNode?
     private var gameOverNode: GameOverNode?
-//    private var musicNode: SKAudioNode?
-
+    //    private var musicNode: SKAudioNode?
+    
     // get current maze -> render walls -> render destinations
     var currentMaze: [[Int]] = []
     var walls: [SKSpriteNode] = []
@@ -28,9 +28,11 @@ class GameScene: SKScene {
     var holes: [SKSpriteNode] = [] // Add holes array
     var cats: [CatObstacle] = []
     var wagons: [WagonObstacle] = []
+    private var wallTextureMap: [String: String] = [:] // "row,col" -> textureName
+    private var wagonAccessiblePositions: Set<String> = [] // "row,col" format
     
     var allItemsCollectedWhileGreen: Bool = true
-
+    
     // Next Object
     var nextMaze: [[Int]] = []
     var nextWalls: [[SKSpriteNode]] = []
@@ -54,12 +56,6 @@ class GameScene: SKScene {
     var gameStarted: Bool = false // New state for game start
     var waitingForFirstSwipe: Bool = true // New state for first swipe
     
-    // Obstacle interaction states
-    var playerBehindWagon: WagonObstacle?
-    var playerInFrontOfWagon: WagonObstacle?
-    var playerAtSideOfWagon: WagonObstacle?
-    var playerBlockedBySide: Bool = false
-    var playerFollowingWagon: Bool = false // New state for following behavior
     
     // MARK: - UI
     
@@ -76,9 +72,9 @@ class GameScene: SKScene {
     let baseMoveDeuration: TimeInterval = 0.18 // Base movement duration
     
     // MARK: - Maze dimensions
-
+    
     let mazeWidth: Int = 20
-    let mazeHeight: Int = 11
+    let mazeHeight: Int = iPadHelper.shared.isIPad ? 15 : 11
     
     // MARK: - Level Configuration
     
@@ -105,7 +101,7 @@ class GameScene: SKScene {
     
     func getItemTimer() -> Int {
         if level <= 5 {
-            return Int.random(in: 25...32)
+            return Int.random(in: 24...25)
         } else if level <= 10 {
             return Int.random(in: 17...24)
         } else {
@@ -151,10 +147,10 @@ class GameScene: SKScene {
     func getWagonCount() -> Int {
         if level <= 5 {
             return 1
-        } else if level <= 10 {
-            return 1
+        } else if level <= 20 {
+            return 0
         } else {
-            return 2
+            return 1
         }
     }
     
@@ -353,42 +349,50 @@ class GameScene: SKScene {
     
     func setupBackground() {
         let tileSize = CGSize(width: gridSize, height: gridSize)
-
+        
         let mazePixelWidth = CGFloat(mazeWidth) * gridSize
         let mazePixelHeight = CGFloat(mazeHeight) * gridSize
         let offsetX = (size.width - mazePixelWidth)/2
         let offsetY = (size.height - mazePixelHeight)/2
-
+        
         let extraTiles: CGFloat = 3
-
+        
         let minX = offsetX - extraTiles * gridSize
         let maxX = offsetX + mazePixelWidth + extraTiles * gridSize
         let minY = offsetY - extraTiles * gridSize
         let maxY = offsetY + mazePixelHeight + extraTiles * gridSize
-
+        
         let columns = Int((maxX - minX)/gridSize)
         let rows = Int((maxY - minY)/gridSize)
-
+        
         for row in 0..<rows {
             for col in 0..<columns {
                 let pos = CGPoint(
                     x: minX + CGFloat(col) * gridSize + gridSize/2,
                     y: minY + CGFloat(row) * gridSize + gridSize/2
                 )
-
-                let grass = SKSpriteNode(texture: SKTexture(imageNamed: "pathGrass"), size: tileSize)
+                
+                // UPDATED: Use randomized grass texture for background
+                let grassVariant = Int.random(in: 1...19)
+                let grassTextureName = "pathGrass\(grassVariant)"
+                let grass = SKSpriteNode(texture: SKTexture(imageNamed: grassTextureName), size: tileSize)
                 grass.position = pos
                 grass.zPosition = -100
                 addChild(grass)
-
+                
+                // Add random trees on background with new naming
                 if Int.random(in: 0..<10) == 0 {
-                    let tree = SKSpriteNode(texture: SKTexture(imageNamed: "pathTree"), size: tileSize)
+                    let treeVariant = Int.random(in: 1...6)
+                    let treeTextureName = "pathTree\(treeVariant)"
+                    let tree = SKSpriteNode(texture: SKTexture(imageNamed: treeTextureName), size: tileSize)
                     tree.position = pos
                     tree.zPosition = -90
                     addChild(tree)
                 }
             }
         }
+        
+        print("Background setup with randomized pathGrass and pathTree variants")
     }
     
     func setupUI() {
@@ -473,7 +477,7 @@ class GameScene: SKScene {
         holes.forEach { $0.removeFromParent() }
         cats.forEach { $0.removeFromParent() }
         wagons.forEach { $0.removeFromParent() }
-        hearts.forEach { $0.removeFromParent() } // Add heart cleanup
+        hearts.forEach { $0.removeFromParent() }
         
         walls.removeAll()
         items.removeAll()
@@ -481,7 +485,8 @@ class GameScene: SKScene {
         holes.removeAll()
         cats.removeAll()
         wagons.removeAll()
-        hearts.removeAll() // Add heart cleanup
+        hearts.removeAll()
+        wagonAccessiblePositions.removeAll() // Clear accessible positions
         
         let wallColor = [UIColor.blue, .purple, .red, .green, .orange, .cyan][(level - 1) % 6]
         
@@ -511,8 +516,19 @@ class GameScene: SKScene {
                     let textureName: String
                     if isOverDestination {
                         textureName = randomHouseAsset() // Use house textures for walls with items
+                        // Items use house textures - not accessible to wagons
+                        print("Position (\(row),\(col)) has item - using house texture: \(textureName)")
                     } else {
                         textureName = randomWallAsset()
+                        // UPDATED: Check if texture contains "pathGrass" (works with pathGrass1, pathGrass2, etc.)
+                        if textureName.contains("pathGrass") {
+                            wagonAccessiblePositions.insert("\(row),\(col)")
+                            print("Marked position (\(row),\(col)) as wagon-accessible (\(textureName))")
+                        } else if textureName.contains("pathTree") {
+                            print("Position (\(row),\(col)) not accessible to wagons (\(textureName))")
+                        } else {
+                            print("Position (\(row),\(col)) unknown texture type: \(textureName)")
+                        }
                     }
                     
                     let wallTexture = SKTexture(imageNamed: textureName)
@@ -534,6 +550,7 @@ class GameScene: SKScene {
                 }
             }
         }
+        
         setupPathTiles(maze: maze, offsetX: offsetX, offsetY: offsetY)
         
         // Add holes based on level
@@ -541,12 +558,15 @@ class GameScene: SKScene {
             setupHoles(maze: maze, offsetX: offsetX, offsetY: offsetY)
         }
         
-        // Setup obstacles after game starts
+        // Setup obstacles after game starts AND after walls are created
         if gameStarted {
             setupObstacles(maze: maze, offsetX: offsetX, offsetY: offsetY)
         }
         
         nextMaze = getMazeLayout(for: level + 1)
+        
+        print("Total wagon-accessible positions: \(wagonAccessiblePositions.count)")
+        print("Accessible positions: \(Array(wagonAccessiblePositions).sorted())")
     }
     
     // MARK: - Add heart-related helper methods
@@ -790,7 +810,7 @@ class GameScene: SKScene {
             ScoreManager.shared.updateScore(score)
             scoreLabel.text = "Score: \(score)"
             updateHighScoreDisplay()
-
+            
             // Show bonus score message
             let label = SKLabelNode(fontNamed: "LuckiestGuy-Regular")
             label.text = "+\(bonusScore) (Max Hearts!)"
@@ -841,7 +861,7 @@ class GameScene: SKScene {
     func setupObstacles(maze: [[Int]], offsetX: CGFloat, offsetY: CGFloat) {
         let mazeOffset = CGPoint(x: offsetX, y: offsetY)
         
-        // Setup cats
+        // Setup cats (unchanged)
         let catCount = getCatCount()
         for _ in 0..<catCount {
             if let catPosition = findSafeGrassPosition(maze: maze, offsetX: offsetX, offsetY: offsetY) {
@@ -853,26 +873,91 @@ class GameScene: SKScene {
             }
         }
         
-        // Setup wagon
+        // SIMPLIFIED: Setup wagons using tracked accessible positions
         let wagonCount = getWagonCount()
         for _ in 0..<wagonCount {
-            if let wagonPosition = findSafeRoadPosition(maze: maze, offsetX: offsetX, offsetY: offsetY) {
-                let wagon = WagonObstacle(gridSize: gridSize, maze: maze, mazeOffset: mazeOffset, playerSpeedFactor: getPlayerSpeedFactor())
+            if let wagonPosition = findSafeAccessibleGrassPositionSimple(maze: maze, offsetX: offsetX, offsetY: offsetY) {
+                let wagon = WagonObstacle(gridSize: gridSize, maze: maze, mazeOffset: mazeOffset, gameScene: self)
                 wagon.position = wagonPosition
                 wagon.zPosition = 12
-                wagon.player = player
-                
-                // Setup seller interaction callback
-                wagon.onPlayerInteraction = { [weak self] wagon, interactionType in
-                    self?.handleWagonInteraction(wagon, interactionType)
-                }
-                
                 addChild(wagon)
                 wagons.append(wagon)
+                print("Successfully spawned wagon at position \(wagonPosition)")
+            } else {
+                print("Could not find safe accessible grass position for wagon")
             }
         }
         
-        print("Spawned \(cats.count) cats and \(wagons.count) sellers for level \(level)")
+        print("Spawned \(cats.count) cats and \(wagons.count) wagons for level \(level)")
+    }
+    
+    func findSafeAccessibleGrassPositionFixed(maze: [[Int]], offsetX: CGFloat, offsetY: CGFloat) -> CGPoint? {
+        var accessibleGrassPositions: [CGPoint] = []
+        
+        for row in 1..<maze.count - 1 {
+            for col in 1..<maze[row].count - 1 {
+                if maze[row][col] == 1 { // grass/wall
+                    let worldPos = CGPoint(
+                        x: offsetX + CGFloat(col) * gridSize + gridSize/2,
+                        y: offsetY + CGFloat(maze.count - row - 1) * gridSize + gridSize/2
+                    )
+                    
+                    // Check if position is far from player start and items
+                    let isFarFromPlayer = hypot(worldPos.x - player.position.x, worldPos.y - player.position.y) > gridSize * 4
+                    let isFarFromItems = items.allSatisfy { item in
+                        hypot(worldPos.x - item.position.x, worldPos.y - item.position.y) > gridSize * 2
+                    }
+                    
+                    // FIXED: Check actual texture using stored texture map
+                    let isAccessibleToWagons = isGrassPositionAccessibleToWagonsFixed(row: row, col: col)
+                    
+                    if isFarFromPlayer && isFarFromItems && isAccessibleToWagons {
+                        accessibleGrassPositions.append(worldPos)
+                        print("Found accessible grass position for wagon at row:\(row), col:\(col)")
+                    }
+                }
+            }
+        }
+        
+        print("Found \(accessibleGrassPositions.count) total accessible grass positions for wagons")
+        return accessibleGrassPositions.randomElement()
+    }
+    
+    private func isGrassPositionAccessibleToWagonsFixed(row: Int, col: Int) -> Bool {
+        let mapKey = "\(row),\(col)"
+        
+        // Check if this position has an item (uses house texture)
+        let hasItem = itemGridPositions.contains { $0.row == row && $0.col == col }
+        if hasItem {
+            print("Position (\(row),\(col)) blocked - has item (house texture)")
+            return false
+        }
+        
+        // Check the actual texture from our stored map
+        if let textureName = wallTextureMap[mapKey] {
+            if textureName.contains("pathGrass") {
+                print("Position (\(row),\(col)) accessible - pathGrass texture: \(textureName)")
+                return true
+            } else if textureName.contains("pathTree") {
+                print("Position (\(row),\(col)) blocked - pathTree texture: \(textureName)")
+                return false
+            } else if textureName.contains("house") {
+                print("Position (\(row),\(col)) blocked - house texture: \(textureName)")
+                return false
+            } else {
+                print("Position (\(row),\(col)) blocked - unknown texture: \(textureName)")
+                return false
+            }
+        }
+        
+        // If no texture info found, be conservative and block
+        print("Position (\(row),\(col)) blocked - no texture info found")
+        return false
+    }
+    
+    // ADDED: Getter method to make itemGridPositions accessible to WagonObstacle
+    func getItemGridPositions() -> [(row: Int, col: Int)] {
+        return itemGridPositions
     }
     
     func findSafeGrassPosition(maze: [[Int]], offsetX: CGFloat, offsetY: CGFloat) -> CGPoint? {
@@ -893,6 +978,67 @@ class GameScene: SKScene {
                     }
                     
                     if isFarFromPlayer && isFarFromItems {
+                        grassPositions.append(worldPos)
+                    }
+                }
+            }
+        }
+        
+        return grassPositions.randomElement()
+    }
+    
+    func findSafeAccessibleGrassPositionSimple(maze: [[Int]], offsetX: CGFloat, offsetY: CGFloat) -> CGPoint? {
+        var candidatePositions: [CGPoint] = []
+        
+        // Only check positions we know are accessible to wagons
+        for accessibleKey in wagonAccessiblePositions {
+            let components = accessibleKey.split(separator: ",")
+            guard components.count == 2,
+                  let row = Int(components[0]),
+                  let col = Int(components[1]) else { continue }
+            
+            let worldPos = CGPoint(
+                x: offsetX + CGFloat(col) * gridSize + gridSize/2,
+                y: offsetY + CGFloat(maze.count - row - 1) * gridSize + gridSize/2
+            )
+            
+            // Check if position is far from player start and items
+            let isFarFromPlayer = hypot(worldPos.x - player.position.x, worldPos.y - player.position.y) > gridSize * 4
+            let isFarFromItems = items.allSatisfy { item in
+                hypot(worldPos.x - item.position.x, worldPos.y - item.position.y) > gridSize * 2
+            }
+            
+            if isFarFromPlayer && isFarFromItems {
+                candidatePositions.append(worldPos)
+                print("Added wagon candidate position: (\(row),\(col)) at world \(worldPos)")
+            }
+        }
+        
+        print("Found \(candidatePositions.count) safe accessible positions for wagons")
+        return candidatePositions.randomElement()
+    }
+    
+    func findSafeAccessibleGrassPosition(maze: [[Int]], offsetX: CGFloat, offsetY: CGFloat) -> CGPoint? {
+        var grassPositions: [CGPoint] = []
+        
+        for row in 1..<maze.count - 1 {
+            for col in 1..<maze[row].count - 1 {
+                if maze[row][col] == 1 { // grass/wall
+                    let worldPos = CGPoint(
+                        x: offsetX + CGFloat(col) * gridSize + gridSize/2,
+                        y: offsetY + CGFloat(maze.count - row - 1) * gridSize + gridSize/2
+                    )
+                    
+                    // Check if position is far from player start and items
+                    let isFarFromPlayer = hypot(worldPos.x - player.position.x, worldPos.y - player.position.y) > gridSize * 4
+                    let isFarFromItems = items.allSatisfy { item in
+                        hypot(worldPos.x - item.position.x, worldPos.y - item.position.y) > gridSize * 2
+                    }
+                    
+                    // Check if this position would have pathGrass texture (not pathTree)
+                    let isAccessibleToWagons = isGrassPositionAccessibleToWagons(row: row, col: col)
+                    
+                    if isFarFromPlayer && isFarFromItems && isAccessibleToWagons {
                         grassPositions.append(worldPos)
                     }
                 }
@@ -929,98 +1075,6 @@ class GameScene: SKScene {
         return roadPositions.randomElement()
     }
     
-    // Update the handleWagonInteraction method:
-    func handleWagonInteraction(_ wagon: WagonObstacle, _ interactionType: WagonObstacle.PlayerInteractionType) {
-        switch interactionType {
-        case .playerInFront:
-            // Player in front - wagon stops, player can still change direction
-            if playerInFrontOfWagon != wagon {
-                clearOtherWagonInteractions(except: wagon)
-                
-                playerInFrontOfWagon = wagon
-                playerBehindWagon = nil
-                playerAtSideOfWagon = nil
-                playerBlockedBySide = false
-                playerFollowingWagon = false
-                
-                wagon.setBlocked(true, reason: "Player in front")
-                print("Player in front of wagon - wagon stopped, player can change direction")
-            }
-            
-        case .playerBehind:
-            // Player behind - wagon NEVER stops, continues moving and avoids player direction
-            if playerBehindWagon != wagon {
-                clearOtherWagonInteractions(except: wagon)
-                
-                playerBehindWagon = wagon
-                playerInFrontOfWagon = nil
-                playerAtSideOfWagon = nil
-                playerBlockedBySide = false
-                playerFollowingWagon = true
-                
-                // CRITICAL: Wagon must NEVER be blocked when player is behind
-                // Ensure wagon continues moving normally
-                wagon.setBlocked(false, reason: "Player behind - wagon must continue moving")
-                wagon.resumeNormalMovement()
-                
-                print("Player behind wagon - wagon continues moving freely, player will follow")
-            }
-            
-            // Double-check: if wagon was previously blocked, unblock it immediately
-            if wagon.isCurrentlyBlocked() {
-                wagon.setBlocked(false, reason: "Player behind - force unblock wagon")
-                print("Forced wagon unblock - player is behind")
-            }
-            
-        case .playerAtSide:
-            // Player at side - only temporary stop when directly hitting wagon
-            if playerAtSideOfWagon != wagon {
-                clearOtherWagonInteractions(except: wagon)
-                
-                playerAtSideOfWagon = wagon
-                playerInFrontOfWagon = nil
-                playerBehindWagon = nil
-                playerBlockedBySide = false // Player can move freely
-                playerFollowingWagon = false
-                
-                // Wagon tries to escape, but player is not heavily restricted
-                makeWagonEscapeFromPlayer(wagon, playerPosition: .side)
-                print("Player at side of wagon - temporary interaction")
-            }
-            
-        case .playerClear:
-            // Player clear - normal movement
-            var clearedInteraction = false
-            
-            if playerInFrontOfWagon == wagon {
-                playerInFrontOfWagon = nil
-                wagon.setBlocked(false, reason: "Player moved away from front")
-                wagon.resumeNormalMovement()
-                clearedInteraction = true
-                print("Player no longer in front of wagon")
-            }
-            
-            if playerBehindWagon == wagon {
-                playerBehindWagon = nil
-                playerFollowingWagon = false
-                wagon.resumeNormalMovement()
-                clearedInteraction = true
-                print("Player no longer behind wagon")
-            }
-            
-            if playerAtSideOfWagon == wagon {
-                playerAtSideOfWagon = nil
-                playerBlockedBySide = false
-                wagon.resumeNormalMovement()
-                clearedInteraction = true
-                print("Player no longer at side of wagon")
-            }
-            
-            if clearedInteraction {
-                print("Wagon interaction cleared - normal movement resumed")
-            }
-        }
-    }
     
     private func makeWagonEscapeFromPlayer(_ wagon: WagonObstacle, playerPosition: PlayerRelativePosition) {
         let wagonGridPos = wagon.getGridPosition()
@@ -1046,7 +1100,7 @@ class GameScene: SKScene {
             print("Wagon gently adjusting path - escape directions: \(escapeDirections.map { $0.description })")
         }
     }
-
+    
     // Helper method to find escape directions for wagon
     private func findEscapeDirections(from wagonPos: CGPoint, avoiding playerPos: CGPoint, currentDirection: MoveDirection, playerPosition: PlayerRelativePosition) -> [MoveDirection] {
         let allDirections: [MoveDirection] = [.up, .down, .left, .right]
@@ -1078,6 +1132,23 @@ class GameScene: SKScene {
         
         // For side interactions, don't force specific movement patterns
         return escapeDirections
+    }
+    
+    private func isGrassPositionAccessibleToWagons(row: Int, col: Int) -> Bool {
+        // Check if this position would have an item (uses house texture)
+        let hasItem = itemGridPositions.contains { $0.row == row && $0.col == col }
+        if hasItem {
+            return false // House textures are not accessible to wagons
+        }
+        
+        // Use a simple deterministic method to predict if this position would get pathGrass
+        // This is a simple heuristic - you could make it more sophisticated
+        let seed = row * 1000 + col
+        let random = (seed * 9301 + 49297) % 233280
+        let normalizedRandom = Double(random) / 233280.0
+        
+        // Assuming roughly 50% chance of pathGrass vs pathTree in original randomWallAsset()
+        return normalizedRandom > 0.5
     }
     
     private func getNextPosition(from gridPos: CGPoint, direction: MoveDirection) -> CGPoint {
@@ -1115,124 +1186,6 @@ class GameScene: SKScene {
         }
     }
     
-    func startContinuousWagonCollisionCheck() {
-        // Remove any existing collision check
-        removeAction(forKey: "wagonCollisionCheck")
-        
-        // Start continuous collision checking with slightly less frequent updates for stability
-        let checkAction = SKAction.repeatForever(.sequence([
-            .run { [weak self] in self?.checkAllWagonCollisions() },
-            .wait(forDuration: 0.15) // Slightly longer interval for more stability
-        ]))
-        run(checkAction, withKey: "wagonCollisionCheck")
-    }
-    
-    func stopContinuousWagonCollisionCheck() {
-        removeAction(forKey: "wagonCollisionCheck")
-    }
-    
-    private func checkAllWagonCollisions() {
-        guard gameStarted && !isTransitioning && !isGameOver && !isMoving else { return }
-        
-        var anyInteractionFound = false
-        
-        for wagon in wagons {
-            let interactionType = checkIndividualWagonCollision(wagon)
-            if interactionType != .playerClear {
-                // Only handle interaction if it's different from current state
-                if !isInteractionAlreadySet(wagon, interactionType) {
-                    handleWagonInteraction(wagon, interactionType)
-                }
-                anyInteractionFound = true
-            }
-        }
-        
-        // Clear interactions that are no longer active, but only after a short delay
-        // to prevent flickering between states
-        if !anyInteractionFound {
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak self] in
-                self?.clearStaleWagonInteractions()
-            }
-        }
-    }
-
-    private func isInteractionAlreadySet(_ wagon: WagonObstacle, _ type: WagonObstacle.PlayerInteractionType) -> Bool {
-        switch type {
-        case .playerInFront:
-            return playerInFrontOfWagon == wagon
-        case .playerBehind:
-            return playerBehindWagon == wagon
-        case .playerAtSide:
-            return playerAtSideOfWagon == wagon
-        case .playerClear:
-            return false
-        }
-    }
-    
-    private func clearStaleWagonInteractions() {
-        var clearedAny = false
-        
-        // Check each active interaction to see if it's still valid
-        if let wagon = playerInFrontOfWagon {
-            let currentInteraction = checkIndividualWagonCollision(wagon)
-            if currentInteraction == .playerClear {
-                handleWagonInteraction(wagon, .playerClear)
-                clearedAny = true
-            }
-        }
-        
-        if let wagon = playerBehindWagon {
-            let currentInteraction = checkIndividualWagonCollision(wagon)
-            if currentInteraction == .playerClear {
-                handleWagonInteraction(wagon, .playerClear)
-                clearedAny = true
-            }
-        }
-        
-        if let wagon = playerAtSideOfWagon {
-            let currentInteraction = checkIndividualWagonCollision(wagon)
-            if currentInteraction == .playerClear {
-                handleWagonInteraction(wagon, .playerClear)
-                clearedAny = true
-            }
-        }
-        
-        if clearedAny {
-            print("Cleared stale wagon interactions")
-        }
-    }
-
-    private func checkIndividualWagonCollision(_ wagon: WagonObstacle) -> WagonObstacle.PlayerInteractionType {
-        let playerGridPos = worldToGridPosition(player.position)
-        let wagonGridPos = wagon.getGridPosition()
-        
-        // FIXED: Calculate the difference correctly (player position - wagon position)
-        let deltaX = playerGridPos.x - wagonGridPos.x
-        let deltaY = playerGridPos.y - wagonGridPos.y
-        
-        // Debug output to help diagnose
-        print("DEBUG: Player grid pos: (\(playerGridPos.x), \(playerGridPos.y))")
-        print("DEBUG: Wagon grid pos: (\(wagonGridPos.x), \(wagonGridPos.y))")
-        print("DEBUG: Delta (player - wagon): (\(deltaX), \(deltaY))")
-        
-        // Check if player is adjacent to wagon or on same position
-        let isAdjacent = (abs(deltaX) == 1 && deltaY == 0) || (deltaX == 0 && abs(deltaY) == 1)
-        let isOnSamePosition = deltaX == 0 && deltaY == 0
-        let distance = hypot(deltaX, deltaY)
-        
-        print("DEBUG: Is adjacent: \(isAdjacent), same position: \(isOnSamePosition), distance: \(distance)")
-        
-        if isOnSamePosition || isAdjacent || distance <= 1.5 {
-            // Determine the relative position based on wagon's current direction
-            let interactionType = determineWagonInteractionType(deltaX: deltaX, deltaY: deltaY, wagon: wagon)
-            print("DEBUG: Interaction type determined: \(interactionType)")
-            return interactionType
-        } else {
-            print("DEBUG: Player too far from wagon")
-            return .playerClear
-        }
-    }
-    
     private func debugCoordinateConversion() {
         if let playerPos = player?.position,
            let wagon = wagons.first
@@ -1247,55 +1200,6 @@ class GameScene: SKScene {
         }
     }
     
-    private func determineWagonInteractionType(deltaX: CGFloat, deltaY: CGFloat, wagon: WagonObstacle) -> WagonObstacle.PlayerInteractionType {
-        let directionVector = wagon.getCurrentDirection().vector
-        
-        // FIXED: More precise detection with correct coordinate system
-        let threshold: CGFloat = 0.8
-        
-        // Calculate where "in front" and "behind" positions would be relative to wagon
-        let frontX = directionVector.dx
-        let frontY = directionVector.dy
-        let behindX = -directionVector.dx
-        let behindY = -directionVector.dy
-        
-        // Debug output to help diagnose the issue
-        print("DEBUG: Wagon direction: \(wagon.getCurrentDirection().description)")
-        print("DEBUG: Direction vector: dx=\(directionVector.dx), dy=\(directionVector.dy)")
-        print("DEBUG: Player delta from wagon: dx=\(deltaX), dy=\(deltaY)")
-        print("DEBUG: Front position would be: dx=\(frontX), dy=\(frontY)")
-        print("DEBUG: Behind position would be: dx=\(behindX), dy=\(behindY)")
-        
-        // Check if player is behind wagon (more lenient detection)
-        let behindDistance = hypot(deltaX - behindX, deltaY - behindY)
-        if behindDistance < threshold {
-            print("DEBUG: Player detected as BEHIND wagon (distance: \(behindDistance))")
-            return .playerBehind
-        }
-        
-        // Check if player is in front of wagon
-        let frontDistance = hypot(deltaX - frontX, deltaY - frontY)
-        if frontDistance < threshold {
-            print("DEBUG: Player detected as IN FRONT of wagon (distance: \(frontDistance))")
-            return .playerInFront
-        }
-        
-        // Check if player is at the same position as wagon
-        if abs(deltaX) < 0.5 && abs(deltaY) < 0.5 {
-            print("DEBUG: Player at SAME POSITION as wagon")
-            return .playerInFront // Treat as front collision
-        }
-        
-        // Player is at the side of wagon
-        let overallDistance = hypot(deltaX, deltaY)
-        if overallDistance <= 1.2 {
-            print("DEBUG: Player detected as AT SIDE of wagon (distance: \(overallDistance))")
-            return .playerAtSide
-        }
-        
-        print("DEBUG: Player detected as CLEAR from wagon")
-        return .playerClear
-    }
     
     // MARK: - Player Movement
     
@@ -1310,8 +1214,8 @@ class GameScene: SKScene {
         ]))
         run(movementAction, withKey: "playerMovement")
         
-        // Start continuous wagon collision checking
-        startContinuousWagonCollisionCheck()
+        // Remove wagon collision checking since wagons now behave like cats
+        print("Player movement started with simplified collision detection")
     }
     
     var isMoving = false
@@ -1352,181 +1256,23 @@ class GameScene: SKScene {
     func updatePlayerMovement() {
         guard gameStarted && !isTransitioning && !isGameOver && !isMoving else { return }
         
-        // Handle special case: player behind wagon with stop-and-follow behavior
-        if playerFollowingWagon, let wagon = playerBehindWagon {
-            handleStopAndFollowMovement(wagon)
-            return
-        }
+        // Remove all the complex wagon interaction logic
+        // Just handle normal movement and direction changes
         
-        // SPECIAL CASE: Player in front of wagon - both stop, no auto movement
-        if playerInFrontOfWagon != nil {
-            // Player in front of wagon - only move if user manually swipes
-            if let next = nextDirection, canMove(in: next) {
-                currentDirection = next
-                nextDirection = nil
-                print("Player in front of wagon - manual direction change to: \(currentDirection.description)")
-                
-                let targetPosition = getTargetPosition(for: currentDirection)
-                movePlayerToPosition(targetPosition)
-            }
-            // NO automatic forward movement when in front of wagon
-            return
-        }
-        
-        // NORMAL: Automatic forward movement for regular gameplay
+        // Process queued direction changes
         if let next = nextDirection, canMove(in: next) {
             currentDirection = next
             nextDirection = nil
             print("Direction changed to: \(currentDirection.description)")
         }
         
-        // Try to move in current direction (automatic forward movement)
+        // Try to move in current direction
         if canMove(in: currentDirection) {
             let targetPosition = getTargetPosition(for: currentDirection)
             movePlayerToPosition(targetPosition)
         }
     }
     
-    func handleStopAndFollowMovement(_ wagon: WagonObstacle) {
-        // Check if player wants to break away from following
-        if let next = nextDirection {
-            let wagonGridPos = wagon.getGridPosition()
-            let playerGridPos = worldToGridPosition(player.position)
-            let wagonDirection = wagon.getCurrentDirection()
-            
-            // SPECIAL CASE: If player wants to turn around (opposite to wagon direction)
-            let wagonOpposite = getOppositeDirection(wagonDirection)
-            if next == wagonOpposite {
-                // Player wants to turn around - check if they can move
-                if canMove(in: next) {
-                    currentDirection = next
-                    nextDirection = nil
-                    playerFollowingWagon = false
-                    print("Player turning around - breaking away from wagon following")
-                    
-                    let targetPosition = getTargetPosition(for: currentDirection)
-                    movePlayerToPosition(targetPosition)
-                    return
-                } else {
-                    // Can't turn around - clear the direction and stay following
-                    nextDirection = nil
-                    print("Player can't turn around - staying behind wagon")
-                    return
-                }
-            }
-            
-            // Regular break away logic for other directions
-            let nextPlayerPos = getGridPositionInDirection(from: playerGridPos, direction: next)
-            let distanceToWagonCurrent = hypot(playerGridPos.x - wagonGridPos.x, playerGridPos.y - wagonGridPos.y)
-            let distanceToWagonNext = hypot(nextPlayerPos.x - wagonGridPos.x, nextPlayerPos.y - wagonGridPos.y)
-            
-            // Allow break away if moving away from or parallel to wagon
-            if distanceToWagonNext >= distanceToWagonCurrent - 0.2 && canMove(in: next) {
-                currentDirection = next
-                nextDirection = nil
-                playerFollowingWagon = false
-                print("Player breaking away from following wagon")
-                
-                let targetPosition = getTargetPosition(for: currentDirection)
-                movePlayerToPosition(targetPosition)
-                return
-            } else {
-                // Can't break away in that direction - clear the queued direction
-                nextDirection = nil
-                print("Can't break away in that direction - staying behind wagon")
-            }
-        }
-        
-        // STOP-AND-FOLLOW LOGIC: Player only moves when wagon moves
-        let wagonDirection = wagon.getCurrentDirection()
-        
-        // Only try to follow if:
-        // 1. Wagon is not blocked (it's actually moving)
-        // 2. Player can move in wagon's direction
-        // 3. Player isn't already moving
-        
-        if !wagon.isCurrentlyBlocked() && !isMoving {
-            if canMove(in: wagonDirection) {
-                // Follow wagon with same timing
-                currentDirection = wagonDirection
-                
-                let targetPosition = getTargetPosition(for: currentDirection)
-                
-                // Move with wagon's exact timing to create synchronized stop-and-follow
-                isMoving = true
-                let moveDuration = 0.8 // Match wagon's move duration exactly
-                
-                player.moveWithCustomDuration(to: targetPosition, duration: moveDuration) { [weak self] in
-                    self?.isMoving = false
-                    self?.updateHoleStatus()
-                    self?.checkForItemCollection()
-                    
-                    // After following, player stops and waits for wagon's next move
-                    print("Player completed follow movement - waiting for wagon's next move")
-                }
-                
-                print("Player following wagon's movement in direction: \(wagonDirection.description)")
-            } else {
-                // Can't follow wagon in its direction - player stays stopped
-                print("Player can't follow wagon - staying stopped until wagon moves to a followable direction")
-            }
-        } else if wagon.isCurrentlyBlocked() {
-            // Wagon is stopped, player should also stay stopped
-            print("Player waiting - wagon is stopped")
-        } else {
-            // Player is currently moving, let the movement complete
-            print("Player currently moving - will check again after movement completes")
-        }
-    }
-
-    func handleFollowingWagonMovement(_ wagon: WagonObstacle) {
-        let wagonDirection = wagon.getCurrentDirection()
-        
-        // Check if player wants to change direction away from wagon
-        if let next = nextDirection {
-            // Allow player to break away if they're not moving toward the wagon
-            let wagonGridPos = wagon.getGridPosition()
-            let playerGridPos = worldToGridPosition(player.position)
-            
-            let nextPlayerPos = getGridPositionInDirection(from: playerGridPos, direction: next)
-            let distanceToWagonCurrent = hypot(playerGridPos.x - wagonGridPos.x, playerGridPos.y - wagonGridPos.y)
-            let distanceToWagonNext = hypot(nextPlayerPos.x - wagonGridPos.x, nextPlayerPos.y - wagonGridPos.y)
-            
-            // Allow break away if not moving closer to wagon
-            if distanceToWagonNext >= distanceToWagonCurrent && canMove(in: next) {
-                currentDirection = next
-                nextDirection = nil
-                playerFollowingWagon = false
-                print("Player breaking away from wagon - direction changed to: \(currentDirection.description)")
-                
-                let targetPosition = getTargetPosition(for: currentDirection)
-                movePlayerToPosition(targetPosition)
-                return
-            }
-        }
-        
-        // Continue following wagon in wagon's direction
-        if canMove(in: wagonDirection) {
-            currentDirection = wagonDirection
-            nextDirection = nil // Clear queued direction that can't be executed
-            
-            let targetPosition = getTargetPosition(for: currentDirection)
-            movePlayerToPosition(targetPosition)
-            print("Player following wagon in direction: \(wagonDirection.description)")
-        } else {
-            // Can't follow wagon - try to move in any safe direction
-            let safeMoveDirections: [MoveDirection] = [.up, .down, .left, .right]
-            for direction in safeMoveDirections {
-                if canMove(in: direction) {
-                    currentDirection = direction
-                    let targetPosition = getTargetPosition(for: currentDirection)
-                    movePlayerToPosition(targetPosition)
-                    print("Player can't follow wagon, moving in safe direction: \(direction.description)")
-                    break
-                }
-            }
-        }
-    }
     
     // Helper method to get grid position in a direction
     private func getGridPositionInDirection(from gridPos: CGPoint, direction: MoveDirection) -> CGPoint {
@@ -1568,84 +1314,127 @@ class GameScene: SKScene {
     }
     
     func updateHoleStatus() {
-        let wasOnHole = isOnHole
-        let wasUnderSlowdown = CACurrentMediaTime() < holeSlowdownEndTime
+        let previousOnHole = isOnHole
+        let previousUnderSlowdown = player.isShowingSlowdown()
+        let currentTime = CACurrentMediaTime()
         
+        print("🕳️ === UPDATE HOLE STATUS START ===")
+        print("🕳️ Previous state - onHole: \(previousOnHole), slowdown: \(previousUnderSlowdown)")
+        print("🕳️ Player position: \(player.position)")
+        print("🕳️ Total holes: \(holes.count)")
+        
+        // Check if player is currently on any hole
         isOnHole = false
+        var closestHoleDistance: CGFloat = 999999
         
-        for hole in holes {
+        for (index, hole) in holes.enumerated() {
             let distance = hypot(player.position.x - hole.position.x, player.position.y - hole.position.y)
+            print("🕳️ Hole[\(index)] at \(hole.position), distance: \(distance), threshold: \(gridSize * 0.5)")
+            
+            if distance < closestHoleDistance {
+                closestHoleDistance = distance
+            }
+            
             if distance < gridSize * 0.5 {
                 isOnHole = true
-                
-                playSoundIfEnabled(named: "padhole.wav", on: self)
-                HapticHelper.trigger(.impact(.heavy))
-                
+                print("🕳️ ✅ Player IS on hole[\(index)]! Distance: \(distance)")
                 break
             }
         }
         
-        let currentTime = CACurrentMediaTime()
-        let isUnderSlowdown = isOnHole || currentTime < holeSlowdownEndTime
-        
-        if wasOnHole && !isOnHole {
-            holeSlowdownEndTime = CACurrentMediaTime() + 2.0
-            print("Player left hole - slowdown effect will last 2 more seconds")
+        if !isOnHole {
+            print("🕳️ ❌ Player NOT on any hole. Closest distance: \(closestHoleDistance)")
         }
         
-        // Manage flashing UI effect
-        if isUnderSlowdown && !player.isShowingSlowdown() {
+        // Determine if player should be under slowdown effect
+        let timeUntilSlowdownEnds = holeSlowdownEndTime - currentTime
+        let shouldShowSlowdown = isOnHole || currentTime < holeSlowdownEndTime
+        
+        print("🕳️ Timing - currentTime: \(currentTime), endTime: \(holeSlowdownEndTime)")
+        print("🕳️ Time until slowdown ends: \(timeUntilSlowdownEnds)")
+        print("🕳️ Should show slowdown: \(shouldShowSlowdown) (onHole: \(isOnHole) OR timeRemaining: \(timeUntilSlowdownEnds > 0))")
+        
+        // Handle entering a hole
+        if isOnHole && !previousOnHole {
+            print("🕳️ 🔥 ENTERED HOLE - playing effects")
+            playSoundIfEnabled(named: "padhole.wav", on: self)
+            HapticHelper.trigger(.impact(.heavy))
+            
+            // Extend slowdown period
+            holeSlowdownEndTime = currentTime + 2.0
+            print("🕳️ Extended slowdown until: \(holeSlowdownEndTime)")
+        }
+        
+        // Handle leaving a hole
+        if !isOnHole && previousOnHole {
+            print("🕳️ 🚪 LEFT HOLE - extending slowdown period")
+            holeSlowdownEndTime = max(holeSlowdownEndTime, currentTime + 2.0)
+            print("🕳️ Slowdown will continue until: \(holeSlowdownEndTime)")
+        }
+        
+        // Update visual effect based on current state
+        print("🕳️ Effect decision - should show: \(shouldShowSlowdown), currently showing: \(previousUnderSlowdown)")
+        
+        if shouldShowSlowdown && !previousUnderSlowdown {
+            print("🔴 🎬 STARTING slowdown visual effect")
+            player.debugSlowdownState() // Debug before
             player.showSlowdownEffect()
-        } else if !isUnderSlowdown && player.isShowingSlowdown() {
-            player.hideSlowdownEffect()
-        }
-        
-        if wasOnHole != isOnHole {
-            print("Player \(isOnHole ? "entered" : "left") hole")
-        }
-    }
-    
-    // Helper method to clear other wagon interactions
-    private func clearOtherWagonInteractions(except excludedWagon: WagonObstacle) {
-        for wagon in wagons {
-            if wagon != excludedWagon {
-                // Clear each type of interaction if it's with this wagon
-                if playerInFrontOfWagon == wagon {
-                    playerInFrontOfWagon = nil
-                    wagon.setBlocked(false, reason: "Player moved to different wagon")
-                    wagon.resumeNormalMovement()
-                }
-                if playerBehindWagon == wagon {
-                    playerBehindWagon = nil
-                    playerFollowingWagon = false
-                    wagon.resumeNormalMovement()
-                }
-                if playerAtSideOfWagon == wagon {
-                    playerAtSideOfWagon = nil
-                    playerBlockedBySide = false
-                    wagon.resumeNormalMovement()
-                }
+            
+            // Verify it worked
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak self] in
+                print("🔍 Effect verification after 0.1s:")
+                self?.player.debugSlowdownState()
             }
+            
+        } else if !shouldShowSlowdown && previousUnderSlowdown {
+            print("🟢 🛑 STOPPING slowdown visual effect")
+            player.debugSlowdownState() // Debug before
+            player.hideSlowdownEffect()
+            
+            // Verify it worked
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak self] in
+                print("🔍 Effect verification after 0.1s:")
+                self?.player.debugSlowdownState()
+            }
+            
+        } else if shouldShowSlowdown && previousUnderSlowdown {
+            print("🔄 Slowdown effect continuing (no change needed)")
+        } else {
+            print("⚪ No slowdown effect needed (no change needed)")
+        }
+        
+        // Debug final state
+        print("🕳️ FINAL STATE:")
+        print("   isOnHole: \(isOnHole)")
+        print("   player.isShowingSlowdown(): \(player.isShowingSlowdown())")
+        print("   holeSlowdownEndTime: \(holeSlowdownEndTime)")
+        print("   currentTime: \(currentTime)")
+        print("   timeRemaining: \(holeSlowdownEndTime - currentTime)")
+        print("🕳️ === UPDATE HOLE STATUS END ===")
+    }
+    
+    func debugHoleStatus() {
+        print("🐛 DEBUG HOLE STATUS:")
+        print("   isOnHole: \(isOnHole)")
+        print("   holeSlowdownEndTime: \(holeSlowdownEndTime)")
+        print("   currentTime: \(CACurrentMediaTime())")
+        print("   player.isShowingSlowdown(): \(player.isShowingSlowdown())")
+        print("   player.alpha: \(player.alpha)")
+        print("   holes count: \(holes.count)")
+        
+        for (index, hole) in holes.enumerated() {
+            let distance = hypot(player.position.x - hole.position.x, player.position.y - hole.position.y)
+            print("   hole[\(index)] distance: \(distance)")
         }
     }
     
-    func clearAllWagonInteractions() {
-        // Clear all interaction states
-        playerBehindWagon = nil
-        playerInFrontOfWagon = nil
-        playerAtSideOfWagon = nil
-        playerBlockedBySide = false
-        playerFollowingWagon = false
-        
-        // Unblock all wagons and ensure they can move
-        for wagon in wagons {
-            wagon.setBlocked(false, reason: "All interactions cleared")
-            wagon.resumeNormalMovement()
-        }
-        
-        print("All wagon interactions cleared")
+    func forceResetHoleEffects() {
+        print("🚨 FORCE RESET all hole effects")
+        isOnHole = false
+        holeSlowdownEndTime = 0
+        player.forceResetSlowdownEffect()
     }
-
+    
     private func isPositionWithinBounds(_ position: CGPoint) -> Bool {
         let mazePixelWidth = CGFloat(mazeWidth) * gridSize
         let mazePixelHeight = CGFloat(mazeHeight) * gridSize
@@ -1658,7 +1447,14 @@ class GameScene: SKScene {
         let mazeMaxY = offsetY + mazePixelHeight - gridSize/2
         
         return position.x >= mazeMinX && position.x <= mazeMaxX &&
-            position.y >= mazeMinY && position.y <= mazeMaxY
+        position.y >= mazeMinY && position.y <= mazeMaxY
+    }
+    
+    func isPositionAccessibleToWagons(row: Int, col: Int) -> Bool {
+        let key = "\(row),\(col)"
+        let isAccessible = wagonAccessiblePositions.contains(key)
+        print("Checking position (\(row),\(col)) for wagon access: \(isAccessible)")
+        return isAccessible
     }
     
     // Update the canMove method to handle wagon interactions:
@@ -1674,12 +1470,12 @@ class GameScene: SKScene {
         let offsetX = (size.width - mazePixelWidth)/2
         let offsetY = (size.height - mazePixelHeight)/2
         
-        let mazeMinX = offsetX + gridSize/2 // Add buffer to prevent going out of bounds
+        let mazeMinX = offsetX + gridSize/2
         let mazeMaxX = offsetX + mazePixelWidth - gridSize/2
         let mazeMinY = offsetY + gridSize/2
         let mazeMaxY = offsetY + mazePixelHeight - gridSize/2
         
-        // ENHANCED BOUNDARY CHECK - prevent player from being pushed out of map
+        // Boundary check
         if future.x < mazeMinX || future.x > mazeMaxX || future.y < mazeMinY || future.y > mazeMaxY {
             print("Movement blocked: would go out of bounds")
             return false
@@ -1690,7 +1486,7 @@ class GameScene: SKScene {
             return false
         }
         
-        // Check collision with cats
+        // Check collision with cats (simple collision)
         if cats.contains(where: { cat in
             let distance = hypot(future.x - cat.position.x, future.y - cat.position.y)
             return distance < gridSize * 0.7
@@ -1698,52 +1494,7 @@ class GameScene: SKScene {
             return false
         }
         
-        // UPDATED WAGON INTERACTION HANDLING - Player in front = both stop completely
-        
-        // 1. Player in front of wagon - both entities stop completely
-        if let wagon = playerInFrontOfWagon {
-            // Block any movement that would maintain the front collision
-            let wagonPos = wagon.position
-            let distance = hypot(future.x - wagonPos.x, future.y - wagonPos.y)
-            
-            // Only allow movement that significantly increases distance (moving away)
-            let currentDistance = hypot(player.position.x - wagonPos.x, player.position.y - wagonPos.y)
-            
-            if distance >= currentDistance + gridSize * 0.3 {
-                // Moving away from wagon - allow
-                print("Player in front can move \(direction.description) - moving away from wagon")
-                return true
-            } else {
-                // Not moving away enough - block movement
-                print("Movement blocked: player in front of wagon, not moving away enough")
-                return false
-            }
-        }
-        
-        // 2. Player behind wagon - allow free movement (following is handled separately)
-        if playerBehindWagon != nil {
-            // Only check for direct collision
-            if wagons.contains(where: { w in
-                let distance = hypot(future.x - w.position.x, future.y - w.position.y)
-                return distance < gridSize * 0.6 // Slightly smaller collision radius
-            }) {
-                return false
-            }
-            return true
-        }
-        
-        // 3. Player at side of wagon - only block direct collision
-        if let wagon = playerAtSideOfWagon {
-            // Only block if movement would cause direct collision
-            let distance = hypot(future.x - wagon.position.x, future.y - wagon.position.y)
-            if distance < gridSize * 0.7 {
-                print("Movement blocked: direct collision with wagon at side")
-                return false
-            }
-            return true // Allow movement away from wagon
-        }
-        
-        // 4. Check for new collisions with wagons (general case)
+        // Check collision with wagons (simple collision like cats)
         if wagons.contains(where: { wagon in
             let distance = hypot(future.x - wagon.position.x, future.y - wagon.position.y)
             return distance < gridSize * 0.7
@@ -1885,7 +1636,7 @@ class GameScene: SKScene {
         // Run Haptic
         HapticHelper.trigger(.impact(.heavy))
         HapticHelper.trigger(.impact(.heavy))
-
+        
         run(.sequence([
             .wait(forDuration: 0.5),
             .run { [weak self] in
@@ -1897,29 +1648,23 @@ class GameScene: SKScene {
     func setupNewLevel() {
         print("Setting up new level \(level)")
         
-        // Stop collision checking during transition
-        stopContinuousWagonCollisionCheck()
-        
         isMoving = false
         isCollecting = false
-        isOnHole = false
-        holeSlowdownEndTime = 0
         currentDirection = .right
         nextDirection = nil
         collectedItems = 0
         expiredItems = 0
-        playerFollowingWagon = false
-        heartGridPosition = nil // Clear heart position
+        heartGridPosition = nil
         
-        // Clear hole effect for level transition
-        player.hideSlowdownEffect()
-        
-        // Clear all wagon interactions properly
-        clearAllWagonInteractions()
+        // FIXED: Properly reset hole effects for level transition
+        print("🔄 Resetting hole effects for new level")
+        isOnHole = false
+        holeSlowdownEndTime = 0
+        player.forceResetSlowdownEffect()
         
         currentMaze = nextMaze.isEmpty ? getMazeLayout(for: level) : nextMaze
         setupMaze(maze: currentMaze)
-        spawnItems() // This will now also spawn hearts if needed
+        spawnItems()
         findSafeStartingPosition()
         
         // Update obstacle references to new maze
@@ -1928,7 +1673,7 @@ class GameScene: SKScene {
         run(.sequence([
             .wait(forDuration: 0.1),
             .run { [weak self] in
-                self?.startPlayerMovement() // This will also restart collision checking
+                self?.startPlayerMovement()
                 self?.isTransitioning = false
                 print("Level transition complete - input and movement re-enabled")
                 print("Level \(self?.level ?? 0) stats: Speed factor: \(self?.getPlayerSpeedFactor() ?? 0), Items: \(self?.getItemCount() ?? 0), Holes: \(self?.getHoleCount() ?? 0), Hearts: \(self?.hearts.count ?? 0)")
@@ -1948,9 +1693,9 @@ class GameScene: SKScene {
             cat.updateMaze(currentMaze, offset: mazeOffset)
         }
         
+        // Simplified wagon update (no more complex speed factors)
         for wagon in wagons {
             wagon.updateMaze(currentMaze, offset: mazeOffset)
-            wagon.updatePlayerSpeedFactor(getPlayerSpeedFactor())
         }
     }
     
@@ -1960,10 +1705,7 @@ class GameScene: SKScene {
         player?.removeAllActions()
         isMoving = false
         
-        // Stop continuous collision checking
-        stopContinuousWagonCollisionCheck()
-        
-        print("Player movement and wagon collision checking stopped")
+        print("Player movement stopped")
     }
     
     func checkLevelCompletion() {
@@ -2020,15 +1762,15 @@ class GameScene: SKScene {
         stopPlayerMovement()
         clearInputState()
         
-//         Play sound on Game Over
+        //         Play sound on Game Over
         playSoundIfEnabled(named: "lose.wav", on: self)
         
-//         Run Heptics
+        //         Run Heptics
         HapticHelper.trigger(.impact(.heavy))
-//         Create game over modal
+        //         Create game over modal
         showGameOver()
         
-//        print("Game Over!")
+        //        print("Game Over!")
     }
     
     override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
@@ -2099,7 +1841,7 @@ class GameScene: SKScene {
                     self.pauseNode?.toggleSetting(named: "musicEnabled")
                     self.toggleMusic(on: self, fileName: "HeatleyBros - HeatleyBros I - 13 8 Bit Summer")
                 }
-
+                
                 return
             }
             
@@ -2122,7 +1864,7 @@ class GameScene: SKScene {
             }
         }
     }
-
+    
     func setupHoles(maze: [[Int]], offsetX: CGFloat, offsetY: CGFloat) {
         // Use level-based hole count
         let numberOfHoles = getHoleCount()
@@ -2182,32 +1924,26 @@ class GameScene: SKScene {
     func restartGame() {
         print("Restarting game...")
         
-        // Stop collision checking
-        stopContinuousWagonCollisionCheck()
-        
-        // Hide any active hole effects before restart
-        player?.hideSlowdownEffect()
-        
-        // Clear all wagon interactions properly
-        clearAllWagonInteractions()
+        // FIXED: Properly reset hole effects for restart
+        print("🔄 Resetting hole effects for restart")
+        isOnHole = false
+        holeSlowdownEndTime = 0
+        player?.forceResetSlowdownEffect()
         
         // Reset game state
         score = 0
         level = 1
-        health = 3 // Start with 3 hearts
+        health = 3
         isGameOver = false
         isTransitioning = false
         isMoving = false
         isCollecting = false
-        isOnHole = false
-        holeSlowdownEndTime = 0
         currentDirection = .right
         nextDirection = nil
         collectedItems = 0
         expiredItems = 0
         gameStarted = false
         waitingForFirstSwipe = true
-        playerFollowingWagon = false
         heartGridPosition = nil
         
         // Clear heart sprites
@@ -2230,6 +1966,7 @@ class GameScene: SKScene {
         // Restart the game
         didMove(to: view!)
     }
+    
     
     private func addItemToGame(_ item: ItemNode) {
         addChild(item)
@@ -2255,7 +1992,7 @@ class GameScene: SKScene {
             if item.category != .green {
                 allItemsCollectedWhileGreen = false
             }
-
+            
             let points = item.category.points * 10 * level
             totalPoints += points
             
@@ -2272,7 +2009,7 @@ class GameScene: SKScene {
             let removeEffect = SKAction.removeFromParent()
             let effectSequence = SKAction.sequence([SKAction.group([expandAction, fadeAction]), removeEffect])
             collectEffect.run(effectSequence)
-
+            
             // Remove the item and track collection
             item.removeFromParent()
             items.remove(at: index)
@@ -2311,6 +2048,29 @@ class GameScene: SKScene {
         }
     }
     
+    func testSlowdownEffect() {
+        print("🧪 MANUAL TEST: Testing slowdown effect")
+        player.debugSlowdownState()
+        
+        print("🧪 Calling showSlowdownEffect()...")
+        player.showSlowdownEffect()
+        
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { [weak self] in
+            print("🧪 State after 0.2s:")
+            self?.player.debugSlowdownState()
+            
+            DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) { [weak self] in
+                print("🧪 Calling hideSlowdownEffect()...")
+                self?.player.hideSlowdownEffect()
+                
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { [weak self] in
+                    print("🧪 Final state after hide:")
+                    self?.player.debugSlowdownState()
+                }
+            }
+        }
+    }
+    
     func clearInputState() {
         nextDirection = nil
         currentDirection = .right
@@ -2321,10 +2081,9 @@ class GameScene: SKScene {
         // Clear hole effect
         player.hideSlowdownEffect()
         
-        // Clear wagon interaction states with proper cleanup
-        clearAllWagonInteractions()
+        // No more wagon interaction states to clear
         
-        print("Input state cleared including wagon interactions and hole effects")
+        print("Input state cleared")
     }
     
     func findSafeStartingPosition() {
@@ -2375,7 +2134,7 @@ class GameScene: SKScene {
             addChild(pauseNode!)
         }
     }
-
+    
     func hidePauseMenu() {
         pauseNode?.removeFromParent()
         pauseNode = nil
@@ -2385,14 +2144,14 @@ class GameScene: SKScene {
     }
     
     // MARK: - Item Pause/Resume Methods
-
+    
     private func pauseAllItems() {
         for item in items {
             item.pauseTimer()
         }
         print("Paused \(items.count) item timers")
     }
-
+    
     private func resumeAllItems() {
         for item in items {
             item.resumeTimer()
@@ -2408,7 +2167,7 @@ class GameScene: SKScene {
             addChild(gameOverNode!)
         }
     }
-
+    
     func hideGameOver() {
         gameOverNode?.removeFromParent()
         gameOverNode = nil
@@ -2464,23 +2223,11 @@ extension GameScene: SKPhysicsContactDelegate {
             print("Player collided with cat - movement blocked")
         }
         
-        // Check for player-wagon contact (handle immediately but only when not moving)
-        if !isMoving {
-            if a.categoryBitMask == PlayerNode.category && b.categoryBitMask == WagonObstacle.categoryBitMask {
-                if let wagonNode = b.node as? WagonObstacle {
-                    let interactionType = checkIndividualWagonCollision(wagonNode)
-                    if interactionType != .playerClear {
-                        handleWagonInteraction(wagonNode, interactionType)
-                    }
-                }
-            } else if b.categoryBitMask == PlayerNode.category && a.categoryBitMask == WagonObstacle.categoryBitMask {
-                if let wagonNode = a.node as? WagonObstacle {
-                    let interactionType = checkIndividualWagonCollision(wagonNode)
-                    if interactionType != .playerClear {
-                        handleWagonInteraction(wagonNode, interactionType)
-                    }
-                }
-            }
+        // Simplified wagon collision (treat like cats)
+        if (a.categoryBitMask == PlayerNode.category && b.categoryBitMask == WagonObstacle.categoryBitMask) ||
+            (b.categoryBitMask == PlayerNode.category && a.categoryBitMask == WagonObstacle.categoryBitMask)
+        {
+            print("Player collided with wagon - movement blocked")
         }
     }
 }
@@ -2591,9 +2338,9 @@ extension GameScene {
         var highScoreLabel: SKLabelNode!
         
         // Calculate positions for 3 elements (removed health from text labels)
-        let scoreX = margin + 100
-        let levelX = margin + (availableWidth * (0.5 - 0.075))
-        let highScoreX = margin + (availableWidth * 0.85)
+        let scoreX = margin + 80
+        let levelX = margin + (availableWidth * (0.5 - 0.1))
+        let highScoreX = margin + (availableWidth * 0.8)
         
         // Create labels with LuckiestGuy font
         scoreLabel = createLabel(text: "Score: 0", position: CGPoint(x: scoreX, y: yPosition))
@@ -2637,7 +2384,7 @@ extension GameScene {
         let heartSize: CGFloat = 24 // Size of each heart
         let heartSpacing: CGFloat = 26 // Space between hearts
         let totalWidth = CGFloat(maxHealth) * heartSpacing - (heartSpacing - heartSize)
-        let startX = size.width - 280 - totalWidth // Position from right side
+        let startX = size.width - 300 - totalWidth // Position from right side
         let heartY = size.height - 27
         
         // Create heart sprites for max health
@@ -2774,9 +2521,9 @@ extension GameScene {
 // MARK: - Fixed Label Creation Methods
 
 extension GameScene {
-//    func createLabel(text: String, position: CGPoint) -> SKLabelNode {
-//        return createLabelWithFont(text: text, fontSize: 20, position: position)
-//    }
+    //    func createLabel(text: String, position: CGPoint) -> SKLabelNode {
+    //        return createLabelWithFont(text: text, fontSize: 20, position: position)
+    //    }
     
     // Update your existing setupUI method
     func setupUIFixed() {
