@@ -103,39 +103,36 @@ class PlayerNode: SKSpriteNode {
     func showSlowdownEffect() {
             print("🔴 showSlowdownEffect() called - current state: \(isShowingSlowdownEffect)")
             
-            guard !isShowingSlowdownEffect else {
-                print("⚠️ Slowdown effect already showing, skipping")
-                return
-            }
+            // ALWAYS reset completely first, even if already showing
+            // This fixes the "sometimes doesn't work" issue
+            forceResetSlowdownEffectInternal()
             
             // Set the flag
             isShowingSlowdownEffect = true
             
-            // Stop any existing slowdown animation first
-            self.removeAction(forKey: "playerSlowdownFlash")
+            // Create flashing animation with more reliable timing
+            let fadeToLow = SKAction.fadeAlpha(to: 0.4, duration: 0.25)    // Slightly faster
+            let fadeToNormal = SKAction.fadeAlpha(to: 1.0, duration: 0.25) // Slightly faster
+            fadeToLow.timingMode = .easeInEaseOut
+            fadeToNormal.timingMode = .easeInEaseOut
             
-            // Reset to normal state first
-            self.color = .clear
-            self.colorBlendFactor = 0.0
-            
-            // Create flashing effect using color blending
-            // Flash between normal appearance and darkened appearance
-            let flashToDark = SKAction.group([
-                SKAction.colorize(with: .black, colorBlendFactor: 0.6, duration: 0.3)
-            ])
-            
-            let flashToNormal = SKAction.group([
-                SKAction.colorize(with: .clear, colorBlendFactor: 0.0, duration: 0.3)
-            ])
-            
-            let flash = SKAction.sequence([flashToDark, flashToNormal])
+            let flash = SKAction.sequence([fadeToLow, fadeToNormal])
             let repeatFlash = SKAction.repeatForever(flash)
             
-            // Apply to main PlayerNode
-            self.run(repeatFlash, withKey: "playerSlowdownFlash")
+            // Apply to main PlayerNode with a unique key
+            self.run(repeatFlash, withKey: "playerSlowdownAlphaFlash")
             
-            print("✅ Player slowdown COLOR FLASHING effect started")
-            print("🔍 Player color: \(self.color), blendFactor: \(self.colorBlendFactor)")
+            // Double-check that the animation actually started
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak self] in
+                guard let self = self else { return }
+                if self.isShowingSlowdownEffect && !self.hasActions() {
+                    print("⚠️ Animation failed to start, retrying...")
+                    self.retrySlowdownAnimation()
+                }
+            }
+            
+            print("✅ Player slowdown ALPHA flashing effect started")
+            print("🔍 Player alpha: \(self.alpha), hasActions: \(self.hasActions())")
         }
     
 //    func hideSlowdownEffect() {
@@ -167,18 +164,51 @@ class PlayerNode: SKSpriteNode {
                 return
             }
             
+            // Force complete reset
+            forceResetSlowdownEffectInternal()
+            
+            print("✅ Player slowdown effect hidden and reset")
+            print("🔍 Player alpha: \(self.alpha)")
+        }
+    
+    private func forceResetSlowdownEffectInternal() {
+            print("🔄 forceResetSlowdownEffectInternal() - complete cleanup")
+            
             // Clear the flag
             isShowingSlowdownEffect = false
             
-            // Stop the animation
-            self.removeAction(forKey: "playerSlowdownFlash")
+            // Stop ALL actions on main node (but preserve walking animations on visualSprite)
+            self.removeAction(forKey: "playerSlowdownAlphaFlash")
+            self.removeAllActions() // Nuclear option - remove all actions from main node
             
-            // Force reset color to normal immediately
-            self.color = .clear
-            self.colorBlendFactor = 0.0
+            // Force reset alpha to normal with immediate action
+            let resetAlpha = SKAction.fadeAlpha(to: 1.0, duration: 0.0) // Instant reset
+            self.run(resetAlpha)
             
-            print("✅ Player slowdown COLOR FLASHING effect hidden and reset")
-            print("🔍 Player color: \(self.color), blendFactor: \(self.colorBlendFactor)")
+            // Also manually set alpha as backup
+            self.alpha = 1.0
+            
+            print("🔄 Reset complete - alpha: \(self.alpha), hasActions: \(self.hasActions())")
+        }
+    
+    private func retrySlowdownAnimation() {
+            print("🔄 retrySlowdownAnimation() - attempting to restart failed animation")
+            
+            guard isShowingSlowdownEffect else { return }
+            
+            // Clear any stuck state
+            self.removeAction(forKey: "playerSlowdownAlphaFlash")
+            self.alpha = 1.0
+            
+            // Try starting the animation again
+            let fadeToLow = SKAction.fadeAlpha(to: 0.4, duration: 0.25)
+            let fadeToNormal = SKAction.fadeAlpha(to: 1.0, duration: 0.25)
+            let flash = SKAction.sequence([fadeToLow, fadeToNormal])
+            let repeatFlash = SKAction.repeatForever(flash)
+            
+            self.run(repeatFlash, withKey: "playerSlowdownAlphaFlash")
+            
+            print("🔄 Retry complete - hasActions: \(self.hasActions())")
         }
     
     private var slowdownOverlay: SKSpriteNode?
@@ -256,6 +286,11 @@ class PlayerNode: SKSpriteNode {
         print("🔄 Reset complete - opacity: \(visualSprite.alpha), hasActions: \(visualSprite.hasActions())")
     }
     
+    func forceResetSlowdownEffect() {
+            print("🚨 PUBLIC FORCE RESET slowdown effect")
+            forceResetSlowdownEffectInternal()
+        }
+    
     func moveWithCustomDuration(to targetPosition: CGPoint, duration: TimeInterval, completion: @escaping () -> Void) {
         // Remove any existing actions from both main node and visual sprite
         removeAllActions()
@@ -300,21 +335,21 @@ class PlayerNode: SKSpriteNode {
         applyVisualYOffset()
     }
     
-    func forceResetSlowdownEffect() {
-            print("🚨 FORCE RESET slowdown effect")
-            
-            // Clear the flag
-            isShowingSlowdownEffect = false
-            
-            // Stop all slowdown-related actions on main node
-            self.removeAction(forKey: "playerSlowdownFlash")
-            
-            // Force reset color to normal
-            self.color = .clear
-            self.colorBlendFactor = 0.0
-            
-            print("🚨 Force reset complete - color: \(self.color), blendFactor: \(self.colorBlendFactor)")
-        }
+//    func forceResetSlowdownEffect() {
+//            print("🚨 FORCE RESET slowdown effect")
+//            
+//            // Clear the flag
+//            isShowingSlowdownEffect = false
+//            
+//            // Stop all slowdown-related actions on main node
+//            self.removeAction(forKey: "playerSlowdownFlash")
+//            
+//            // Force reset color to normal
+//            self.color = .clear
+//            self.colorBlendFactor = 0.0
+//            
+//            print("🚨 Force reset complete - color: \(self.color), blendFactor: \(self.colorBlendFactor)")
+//        }
     
     private func applyVisualYOffset() {
         // Remove any existing offset animation
@@ -336,20 +371,43 @@ class PlayerNode: SKSpriteNode {
     func debugSlowdownState() {
             print("🐛 PLAYER SLOWDOWN DEBUG:")
             print("   isShowingSlowdownEffect: \(isShowingSlowdownEffect)")
-            print("   color: \(self.color)")
-            print("   colorBlendFactor: \(self.colorBlendFactor)")
-            print("   alpha: \(self.alpha)")
-            print("   hasActions: \(self.hasActions())")
+            print("   main node alpha: \(self.alpha)")
+            print("   main node hasActions: \(self.hasActions())")
             
-            if self.hasActions() {
-                print("   ✅ Main node has actions running")
+            // Check if the specific action is running
+            if self.action(forKey: "playerSlowdownAlphaFlash") != nil {
+                print("   ✅ Slowdown animation IS running")
             } else {
-                print("   ❌ Main node has NO actions running")
+                print("   ❌ Slowdown animation NOT running")
+            }
+            
+            if let visualSprite = visualSprite {
+                print("   visualSprite alpha: \(visualSprite.alpha)")
+                print("   visualSprite hasActions: \(visualSprite.hasActions())")
+            }
+            
+            // Check for action conflicts
+            if self.hasActions() {
+                print("   📋 Main node has actions")
+            }
+            if let vs = visualSprite, vs.hasActions() {
+                print("   📋 VisualSprite has actions (walking animation)")
             }
         }
     
     override func removeAllActions() {
-        super.removeAllActions()
-        visualSprite?.removeAllActions()
-    }
+            // If slowdown effect is active, preserve its state
+            let wasShowingSlowdown = isShowingSlowdownEffect
+            
+            // Remove all actions
+            super.removeAllActions()
+            
+            // If slowdown was active, restart it
+            if wasShowingSlowdown {
+                print("🔄 removeAllActions called during slowdown - restarting effect")
+                DispatchQueue.main.async { [weak self] in
+                    self?.retrySlowdownAnimation()
+                }
+            }
+        }
 }
