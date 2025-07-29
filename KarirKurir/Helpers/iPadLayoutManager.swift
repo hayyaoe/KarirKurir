@@ -5,14 +5,6 @@
 //  Created by Willas Daniel Rorrong Lumban Tobing on 25/07/25.
 //
 
-
-//
-//  iPadLayoutManager.swift
-//  KarirKurir
-//
-//  iPad Pro 13-inch Layout Support
-//
-
 import UIKit
 import SpriteKit
 
