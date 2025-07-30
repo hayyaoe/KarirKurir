@@ -82,10 +82,10 @@ class GameScene: SKScene {
     
     func getPlayerSpeedFactor() -> Double {
         let baseSpeed = 0.6
-        let calculatedSpeed = baseSpeed + (Double(level) * 0.01)
+        let calculatedSpeed = baseSpeed + (Double(level) * 0.03)
         
         // Set a maximum speed, for example, 2.5
-        let maxSpeed = 1.1
+        let maxSpeed = 1.8
         
         // Return the calculated speed, but not more than the max speed
         return min(calculatedSpeed, maxSpeed)
@@ -104,12 +104,15 @@ class GameScene: SKScene {
     }
     
     func getItemTimer() -> Int {
-        if level > 0 && level <= 20 {
-            return Int.random(in: 24...25)
-        } else if level > 20 && level <= 50 {
-            return Int.random(in: 17...24)
+        if level > 0 && level <= 5 {
+            return Int.random(in: 20...22)
+        } else if level > 5 && level <= 20 {
+            return Int.random(in: 18...20)
+        } else if  level > 20 && level <= 30 {
+            return Int.random(in: 14...18)
         } else {
-            return Int.random(in: 12...16)
+            return Int.random(in: 12...14)
+
         }
     }
     
@@ -120,7 +123,7 @@ class GameScene: SKScene {
             return 2
         } else if level > 10 && level <= 20 {
             return 3
-        } else if level > 20 && level <= 50{
+        } else if level > 20 && level <= 30{
             return 4
         } else {
             return 5
@@ -149,7 +152,7 @@ class GameScene: SKScene {
             return 1
         } else if level > 10 && level <= 20 {
             return 2
-        } else if level > 20 && level <= 50 {
+        } else if level > 20 && level <= 30 {
             return 3
         } else {
             return 5
@@ -161,7 +164,7 @@ class GameScene: SKScene {
             return 0
         } else if level > 10 && level <= 20 {
             return 1
-        } else if level > 20 && level <= 50{
+        } else if level > 20 && level <= 30{
             return 2
         } else {
             return 3
