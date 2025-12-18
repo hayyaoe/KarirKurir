@@ -1,6 +1,6 @@
 # Privacy Policy
 
-**Last updated:** [Add date]
+**Last updated:** Desember 2025
 
 This Privacy Policy explains how we handle information when you use our app.
 
